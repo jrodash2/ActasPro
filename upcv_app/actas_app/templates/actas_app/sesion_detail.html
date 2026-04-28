@@ -1,0 +1,22 @@
+{% extends 'almacen/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid">
+<div class="d-flex justify-content-between"><h4>Sesión {{ sesion.numero }}/{{ sesion.anio }}</h4><span class="badge badge-light-info">{{ sesion.get_estado_display }}</span></div>
+<div class="mb-3">
+<a class="btn btn-sm btn-primary" href="{% url 'actas_app:sesion_agenda' sesion.pk %}">Agenda</a>
+<a class="btn btn-sm btn-primary" href="{% url 'actas_app:sesion_asistencia' sesion.pk %}">Asistencia</a>
+<a class="btn btn-sm btn-primary" href="{% url 'actas_app:informe_create' sesion.pk %}">Informes</a>
+<a class="btn btn-sm btn-primary" href="{% url 'actas_app:correspondencia_create' sesion.pk %}">Correspondencia</a>
+<a class="btn btn-sm btn-primary" href="{% url 'actas_app:asunto_nuevo_create' sesion.pk %}">Asuntos nuevos</a>
+<a class="btn btn-sm btn-primary" href="{% url 'actas_app:acuerdo_list' %}">Acuerdos</a>
+<a class="btn btn-sm btn-secondary" href="{% url 'actas_app:acta_generar' sesion.pk %}">Generar acta</a>
+<a class="btn btn-sm btn-warning" href="{% url 'actas_app:acta_edit' sesion.pk %}">Editar acta</a>
+</div>
+<div class="card"><div class="card-body">
+<p><strong>Fecha:</strong> {{ sesion.fecha }} | <strong>Lugar:</strong> {{ sesion.lugar }}</p>
+<p><strong>Quórum:</strong> {{ sesion.quorum_alcanzado }}/{{ sesion.quorum_requerido }} {% if sesion.cumple_quorum %}<span class="badge badge-light-success">Cumple</span>{% else %}<span class="badge badge-light-danger">No cumple</span>{% endif %}</p>
+<h6>Acuerdos</h6><ul>{% for a in acuerdos %}<li>{{ a }}</li>{% empty %}<li>Sin acuerdos.</li>{% endfor %}</ul>
+<h6>Pendientes relacionados</h6><ul>{% for p in pendientes %}<li><a href="{% url 'actas_app:pendiente_detail' p.pk %}">{{ p }}</a></li>{% empty %}<li>Sin pendientes.</li>{% endfor %}</ul>
+</div></div>
+</div></div>
+{% endblock %}
