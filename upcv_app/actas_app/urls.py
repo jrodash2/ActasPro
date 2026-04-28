@@ -17,6 +17,7 @@ urlpatterns = [
     path("sesiones/<int:sesion_id>/acta/", views.acta_edit, name="acta_edit"),
     path("sesiones/<int:sesion_id>/acta/generar/", views.acta_generar, name="acta_generar"),
     path("pendientes/", views.pendiente_list, name="pendiente_list"),
+    path("pendientes/nuevo/", views.pendiente_create, name="pendiente_create"),
     path("pendientes/<int:pk>/", views.pendiente_detail, name="pendiente_detail"),
     path("acuerdos/", views.acuerdo_list, name="acuerdo_list"),
     path("acuerdos/nuevo/", views.acuerdo_create, name="acuerdo_create"),

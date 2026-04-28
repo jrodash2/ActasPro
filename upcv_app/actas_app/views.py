@@ -228,6 +228,21 @@ def pendiente_list(request):
 
 @login_required
 @grupo_requerido("Administrador", "Almacen")
+def pendiente_create(request):
+    if request.method == "POST":
+        form = AsuntoPendienteForm(request.POST)
+        if form.is_valid():
+            pendiente = form.save()
+            registrar_bitacora(request.user, pendiente.titulo, "creación de pendiente", pendiente.descripcion[:120])
+            messages.success(request, "Pendiente creado correctamente.")
+            return redirect("actas_app:pendiente_detail", pk=pendiente.pk)
+    else:
+        form = AsuntoPendienteForm()
+    return render(request, "actas_app/simple_form.html", {"title": "Crear asunto pendiente", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
 def pendiente_detail(request, pk):
     pendiente = get_object_or_404(AsuntoPendiente, pk=pk)
     if request.method == "POST":
