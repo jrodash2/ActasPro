@@ -119,6 +119,21 @@ def sesion_create(request):
 
 @login_required
 @grupo_requerido("Administrador", "Almacen")
+def sesion_edit(request, pk):
+    sesion = get_object_or_404(SesionConsistorial, pk=pk)
+    form = SesionConsistorialForm(request.POST or None, instance=sesion)
+    if request.method == "POST":
+        if form.is_valid():
+            sesion = form.save()
+            registrar_bitacora(request.user, str(sesion), "edición de sesión", "Datos generales actualizados.")
+            messages.success(request, "Sesión actualizada correctamente.")
+            return redirect("actas_app:sesion_detail", pk=sesion.pk)
+        messages.error(request, "Corrige los errores del formulario para guardar la sesión.")
+    return render(request, "actas_app/sesion_form.html", {"form": form, "sesion": sesion, "is_edit": True})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
 def sesion_detail(request, pk):
     sesion = get_object_or_404(SesionConsistorial.objects.select_related("tipo_sesion", "moderador", "secretario"), pk=pk)
     context = {
@@ -281,6 +296,21 @@ def pendiente_detail(request, pk):
 
 @login_required
 @grupo_requerido("Administrador", "Almacen")
+def pendiente_edit(request, pk):
+    pendiente = get_object_or_404(AsuntoPendiente, pk=pk)
+    form = AsuntoPendienteForm(request.POST or None, instance=pendiente)
+    if request.method == "POST":
+        if form.is_valid():
+            form.save()
+            registrar_bitacora(request.user, pendiente.titulo, "edición de pendiente", "Registro general actualizado.")
+            messages.success(request, "Pendiente actualizado correctamente.")
+            return redirect("actas_app:pendiente_detail", pk=pk)
+        messages.error(request, "No se pudo actualizar el pendiente. Revisa los errores.")
+    return render(request, "actas_app/simple_form.html", {"title": "Editar asunto pendiente", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
 def asunto_nuevo_create(request, sesion_id):
     sesion = get_object_or_404(SesionConsistorial, pk=sesion_id)
     if request.method == "POST":
@@ -337,6 +367,21 @@ def acuerdo_create(request):
     else:
         form = AcuerdoConsistorialForm()
     return render(request, "actas_app/simple_form.html", {"title": "Crear acuerdo", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def acuerdo_edit(request, pk):
+    acuerdo = get_object_or_404(AcuerdoConsistorial, pk=pk)
+    form = AcuerdoConsistorialForm(request.POST or None, instance=acuerdo)
+    if request.method == "POST":
+        if form.is_valid():
+            form.save()
+            registrar_bitacora(request.user, str(acuerdo), "edición de acuerdo", "Acuerdo actualizado.")
+            messages.success(request, "Acuerdo actualizado correctamente.")
+            return redirect("actas_app:acuerdo_list")
+        messages.error(request, "No se pudo actualizar el acuerdo. Revisa los errores.")
+    return render(request, "actas_app/simple_form.html", {"title": "Editar acuerdo", "form": form})
 
 
 @login_required

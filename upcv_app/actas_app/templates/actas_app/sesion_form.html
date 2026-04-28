@@ -1,6 +1,29 @@
 {% extends 'almacen/base.html' %}
 {% block content %}
-<div class="page-body"><div class="container-fluid"><div class="card"><div class="card-header"><h5>Crear sesión</h5></div><div class="card-body">
-<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Guardar</button></form>
-</div></div></div></div>
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <h4>{% if is_edit %}Editar sesión{% else %}Crear sesión{% endif %}</h4>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        {% if form.errors %}
+        <div class="alert alert-danger">Hay errores en el formulario. {{ form.errors }}</div>
+        {% endif %}
+        <form method="post">
+          {% csrf_token %}
+          {{ form.as_p }}
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Guardar</button>
+            {% if sesion %}
+            <a class="btn btn-light" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Volver</a>
+            {% else %}
+            <a class="btn btn-light" href="{% url 'actas_app:sesion_list' %}">Volver</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

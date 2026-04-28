@@ -1,6 +1,6 @@
 {% extends 'almacen/base.html' %}
 {% block content %}
 <div class="page-body"><div class="container-fluid"><div class="d-flex justify-content-between"><h4>Acuerdos</h4><a class="btn btn-primary" href="{% url 'actas_app:acuerdo_create' %}">Nuevo acuerdo</a></div>
-<div class="card"><div class="card-body"><table class="table table-striped"><thead><tr><th>No.</th><th>Sesión</th><th>Estado</th><th>Responsable</th></tr></thead><tbody>{% for a in acuerdos %}<tr><td>{{ a.numero }}/{{ a.anio }}</td><td>{{ a.sesion }}</td><td>{{ a.get_estado_display }}</td><td>{{ a.responsable }}</td></tr>{% empty %}<tr><td colspan="4">Sin acuerdos.</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><div class="card-body"><table class="table table-striped"><thead><tr><th>No.</th><th>Sesión</th><th>Estado</th><th>Responsable</th><th>Acciones</th></tr></thead><tbody>{% for a in acuerdos %}<tr><td>{{ a.numero }}/{{ a.anio }}</td><td>{{ a.sesion }}</td><td>{{ a.get_estado_display }}</td><td>{{ a.responsable }}</td><td><a class="btn btn-sm btn-outline-secondary" href="{% url 'actas_app:acuerdo_edit' a.pk %}">Editar</a></td></tr>{% empty %}<tr><td colspan="5">Sin acuerdos.</td></tr>{% endfor %}</tbody></table></div></div>
 </div></div>
 {% endblock %}

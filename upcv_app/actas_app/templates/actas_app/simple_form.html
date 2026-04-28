@@ -1,4 +1,30 @@
 {% extends 'almacen/base.html' %}
 {% block content %}
-<div class="page-body"><div class="container-fluid"><div class="card"><div class="card-header"><h5>{{ title }}</h5></div><div class="card-body"><form method="post" enctype="multipart/form-data">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Guardar</button></form></div></div></div></div>
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <h4>{{ title }}</h4>
+      <p class="mb-0 text-muted">Completa los campos requeridos y guarda los cambios.</p>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        {% if form.errors %}
+        <div class="alert alert-danger">
+          <strong>No se pudo guardar.</strong> Revisa los campos marcados.
+          {{ form.errors }}
+        </div>
+        {% endif %}
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          {{ form.as_p }}
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary" type="submit" name="save">Guardar</button>
+            <button class="btn btn-outline-primary" type="submit" name="save_continue">Guardar y continuar</button>
+            <a class="btn btn-light" href="{% url 'actas_app:dashboard' %}">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
