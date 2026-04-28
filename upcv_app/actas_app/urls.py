@@ -21,4 +21,6 @@ urlpatterns = [
     path("pendientes/<int:pk>/", views.pendiente_detail, name="pendiente_detail"),
     path("acuerdos/", views.acuerdo_list, name="acuerdo_list"),
     path("acuerdos/nuevo/", views.acuerdo_create, name="acuerdo_create"),
+    path("actas/", views.acta_list, name="acta_list"),
+    path("configuracion/", views.configuracion_base, name="configuracion_base"),
 ]

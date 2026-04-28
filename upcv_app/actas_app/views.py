@@ -21,16 +21,19 @@ from .forms import (
 from .models import (
     ActaSesion,
     AcuerdoConsistorial,
+    AgendaPlantilla,
     AsistenciaSesion,
     AsuntoNuevoSesion,
     AsuntoPendiente,
     BitacoraSesion,
     CorrespondenciaSesion,
     InformeSesion,
+    MiembroConsistorio,
     PuntoAgendaSesion,
     PuntoAgendaPlantilla,
     SeguimientoAsuntoPendiente,
     SesionConsistorial,
+    TipoSesion,
 )
 from .services.acta_generator import generar_borrador_acta
 
@@ -330,6 +333,13 @@ def acuerdo_create(request):
 
 @login_required
 @grupo_requerido("Administrador", "Almacen")
+def acta_list(request):
+    actas = ActaSesion.objects.select_related("sesion").order_by("-anio", "-numero_acta")
+    return render(request, "actas_app/acta_list.html", {"actas": actas})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
 def acta_edit(request, sesion_id):
     sesion = get_object_or_404(SesionConsistorial, pk=sesion_id)
     acta, created = ActaSesion.objects.get_or_create(
@@ -385,3 +395,14 @@ def acta_generar(request, sesion_id):
     registrar_bitacora(request.user, str(sesion), "generación de acta", "Borrador generado automáticamente")
     messages.success(request, "Borrador de acta generado.")
     return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def configuracion_base(request):
+    context = {
+        "tipos_sesion": TipoSesion.objects.all(),
+        "miembros": MiembroConsistorio.objects.filter(activo=True).order_by("apellidos", "nombres"),
+        "plantillas": AgendaPlantilla.objects.filter(activa=True).prefetch_related("puntos"),
+    }
+    return render(request, "actas_app/configuracion_base.html", context)
