@@ -1,0 +1,27 @@
+{% extends 'almacen/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>Dashboard de Actas</h4></div></div></div>
+<div class="row">
+  <div class="col-md-2"><div class="card"><div class="card-body"><h6>Sesiones {{ now|date:'Y' }}</h6><h3>{{ total_sesiones }}</h3></div></div></div>
+  <div class="col-md-2"><div class="card"><div class="card-body"><h6>Borrador</h6><h3>{{ sesiones_borrador }}</h3></div></div></div>
+  <div class="col-md-2"><div class="card"><div class="card-body"><h6>Aprobadas</h6><h3>{{ sesiones_aprobadas }}</h3></div></div></div>
+  <div class="col-md-2"><div class="card"><div class="card-body"><h6>Actas revisión</h6><h3>{{ actas_revision }}</h3></div></div></div>
+  <div class="col-md-2"><div class="card"><div class="card-body"><h6>Acuerdos abiertos</h6><h3>{{ acuerdos_abiertos }}</h3></div></div></div>
+  <div class="col-md-2"><div class="card"><div class="card-body"><h6>Pendientes</h6><h3>{{ pendientes_abiertos }}</h3></div></div></div>
+</div>
+<div class="row mb-3">
+  <div class="col-12">
+    <a class="btn btn-primary btn-sm" href="{% url 'actas_app:sesion_create' %}">Crear sesión</a>
+    <a class="btn btn-outline-primary btn-sm" href="{% url 'actas_app:sesion_list' %}">Ver sesiones</a>
+    <a class="btn btn-outline-primary btn-sm" href="{% url 'actas_app:pendiente_list' %}">Gestionar pendientes</a>
+    <a class="btn btn-outline-primary btn-sm" href="{% url 'actas_app:acuerdo_list' %}">Gestionar acuerdos</a>
+    <a class="btn btn-outline-primary btn-sm" href="{% url 'actas_app:acta_list' %}">Actas</a>
+    <a class="btn btn-outline-primary btn-sm" href="{% url 'actas_app:configuracion_base' %}">Configuración base</a>
+  </div>
+</div>
+<div class="row">
+<div class="col-md-6"><div class="card"><div class="card-header">Últimas sesiones</div><div class="card-body"><ul>{% for s in ultimas_sesiones %}<li><a href="{% url 'actas_app:sesion_detail' s.pk %}">{{ s }}</a></li>{% empty %}<li>Sin datos.</li>{% endfor %}</ul></div></div></div>
+<div class="col-md-6"><div class="card"><div class="card-header">Últimos acuerdos</div><div class="card-body"><ul>{% for a in ultimos_acuerdos %}<li>{{ a }}</li>{% empty %}<li>Sin datos.</li>{% endfor %}</ul></div></div></div>
+</div>
+</div></div>
+{% endblock %}

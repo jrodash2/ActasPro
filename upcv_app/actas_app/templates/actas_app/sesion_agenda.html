@@ -1,0 +1,9 @@
+{% extends 'almacen/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid"><div class="card"><div class="card-header"><h5>Agenda de sesión {{ sesion.numero }}/{{ sesion.anio }}</h5></div><div class="card-body">
+<form method="post">{% csrf_token %}{{ formset.management_form }}
+<table class="table table-sm"><thead><tr><th>Sección</th><th>Numeral</th><th>Título</th><th>Orden</th><th>Activo</th><th>Eliminar</th></tr></thead><tbody>
+{% for form in formset %}<tr><td>{{ form.seccion }}</td><td>{{ form.numeral }}</td><td>{{ form.titulo }}</td><td>{{ form.orden }}</td><td>{{ form.activo }}</td><td>{{ form.DELETE }}</td></tr>{% endfor %}
+</tbody></table><button class="btn btn-primary" type="submit">Guardar agenda</button></form>
+</div></div></div></div>
+{% endblock %}
