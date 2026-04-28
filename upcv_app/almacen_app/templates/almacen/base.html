@@ -258,6 +258,18 @@
                 </li>
 {% if user.is_authenticated %}
 
+  <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
+    <a class="sidebar-link" href="{% url 'actas_app:dashboard' %}">
+      <svg class="stroke-icon">
+        <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
+      </svg>
+      <svg class="fill-icon">
+        <use href="../assets/svg/icon-sprite.svg#fill-gallery"></use>
+      </svg>
+      <span>Actas Consistoriales</span>
+    </a>
+  </li>
+
 
   {# Mostrar "Configuración" solo a Administradores #}
   {% if es_administrador %}
@@ -273,6 +285,10 @@
                 
 
 
+    {% url 'almacen:crear_departamento' as crear_departamento_url %}
+    {% url 'almacen:asignar_departamento' as asignar_departamento_url %}
+    {% url 'almacen:lista_departamentos' as lista_departamentos_url %}
+    {% if crear_departamento_url or asignar_departamento_url or lista_departamentos_url %}
     <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
       <a class="sidebar-link sidebar-title" href="#">
         <svg class="stroke-icon">
@@ -286,6 +302,7 @@
       <ul class="sidebar-submenu">
        
         <li><a href="{% url 'almacen:user_create' %}">Usuarios</a></li>
+        <li><a href="{% url 'actas_app:dashboard' %}">Módulo de Actas</a></li>
 
         <li><a href="{% url 'almacen:editar_institucion' %}">Institución</a></li>
         <li><a href="#">Manuales</a></li>
@@ -307,7 +324,9 @@
                   
                 </li>
                 
-                <li class="sidebar-list"><i class="fa fa-thumb-tack"></i><a class="sidebar-link " href="{% url 'almacen:crear_form1h' %}">
+                {% url 'almacen:crear_form1h' as crear_form1h_url %}
+                {% if crear_form1h_url %}
+                <li class="sidebar-list"><i class="fa fa-thumb-tack"></i><a class="sidebar-link " href="{{ crear_form1h_url }}">
                   <svg class="stroke-icon">
                     <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
                   </svg>
@@ -316,7 +335,10 @@
                   </svg><span>Formulario 1H</span></a>
 
               </li>
-                              <li class="sidebar-list"><i class="fa fa-thumb-tack"></i><a class="sidebar-link " href="{% url 'almacen:ver_stock_formulario_1h' %}">
+                {% endif %}
+                {% url 'almacen:ver_stock_formulario_1h' as stock_url %}
+                {% if stock_url %}
+                              <li class="sidebar-list"><i class="fa fa-thumb-tack"></i><a class="sidebar-link " href="{{ stock_url }}">
                   <svg class="stroke-icon">
                     <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
                   </svg>
@@ -325,7 +347,10 @@
                   </svg><span>Stock</span></a>
 
               </li>
-                              <li class="sidebar-list"><i class="fa fa-thumb-tack"></i><a class="sidebar-link " href="{% url 'almacen:crear_requerimiento' %}">
+                {% endif %}
+                {% url 'almacen:crear_requerimiento' as crear_req_url %}
+                {% if crear_req_url %}
+                              <li class="sidebar-list"><i class="fa fa-thumb-tack"></i><a class="sidebar-link " href="{{ crear_req_url }}">
                   <svg class="stroke-icon">
                     <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
                   </svg>
@@ -334,6 +359,7 @@
                   </svg><span>Requerimientos</span></a>
 
               </li>
+                {% endif %}
     <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
       <a class="sidebar-link sidebar-title" href="#">
         <svg class="stroke-icon">
@@ -345,13 +371,17 @@
         <span>Departamentos</span>
       </a>
       <ul class="sidebar-submenu">
-                  <li><a href="{% url 'almacen:crear_departamento' %}">Crear Departamentos</a></li>
+                  {% if crear_departamento_url %}<li><a href="{{ crear_departamento_url }}">Crear Departamentos</a></li>{% endif %}
            
-                   <li><a href="{% url 'almacen:asignar_departamento' %}">Asignar Departamentos</a></li>
-           <li><a href="{% url 'almacen:lista_departamentos' %}">Detalle Departamentos</a></li>
+                   {% if asignar_departamento_url %}<li><a href="{{ asignar_departamento_url }}">Asignar Departamentos</a></li>{% endif %}
+           {% if lista_departamentos_url %}<li><a href="{{ lista_departamentos_url }}">Detalle Departamentos</a></li>{% endif %}
           
       </ul>
     </li>
+    {% endif %}
+    {% url 'almacen:crear_articulo' as crear_articulo_url %}
+    {% url 'almacen:crear_asignacion_detalle' as crear_asignacion_detalle_url %}
+    {% if crear_articulo_url or crear_asignacion_detalle_url %}
   <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
       <a class="sidebar-link sidebar-title" href="#">
         <svg class="stroke-icon">
@@ -363,11 +393,14 @@
         <span>Articulos</span>
       </a>
       <ul class="sidebar-submenu">
-                          <li><a href="{% url 'almacen:crear_articulo' %}">Crear Artículos</a></li>
-      <li><a href="{% url 'almacen:crear_asignacion_detalle' %}">Asignar Articulo</a></li>
+                          {% if crear_articulo_url %}<li><a href="{{ crear_articulo_url }}">Crear Artículos</a></li>{% endif %}
+      {% if crear_asignacion_detalle_url %}<li><a href="{{ crear_asignacion_detalle_url }}">Asignar Articulo</a></li>{% endif %}
       </ul>
    </li>
+   {% endif %}
 
+   {% url 'almacen:crear_proveedor' as crear_proveedor_url %}
+   {% if crear_proveedor_url %}
    <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
       <a class="sidebar-link sidebar-title" href="#">
         <svg class="stroke-icon">
@@ -379,10 +412,13 @@
         <span>Proveedores</span>
       </a>
       <ul class="sidebar-submenu">
-                          <li><a href="{% url 'almacen:crear_proveedor' %}">Crear Proveedor</a></li>
+                          <li><a href="{{ crear_proveedor_url }}">Crear Proveedor</a></li>
     </ul>
    </li>
+   {% endif %}
 
+      {% url 'almacen:crear_categoria' as crear_categoria_url %}
+      {% if crear_categoria_url %}
       <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
       <a class="sidebar-link sidebar-title" href="#">
         <svg class="stroke-icon">
@@ -394,11 +430,14 @@
         <span>Categorias</span>
       </a>
       <ul class="sidebar-submenu">
-                          <li><a href="{% url 'almacen:crear_categoria' %}">Crear Categoria</a></li>
+                          <li><a href="{{ crear_categoria_url }}">Crear Categoria</a></li>
     </ul>
    </li>
+   {% endif %}
 
    
+      {% url 'almacen:crear_unidad' as crear_unidad_url %}
+      {% if crear_unidad_url %}
       <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
       <a class="sidebar-link sidebar-title" href="#">
         <svg class="stroke-icon">
@@ -410,9 +449,10 @@
         <span>Unidades</span>
       </a>
       <ul class="sidebar-submenu">
-                          <li><a href="{% url 'almacen:crear_unidad' %}">Crear Unidades</a></li>
+                          <li><a href="{{ crear_unidad_url }}">Crear Unidades</a></li>
     </ul>
    </li>
+   {% endif %}
 
   {% endif %}
 
