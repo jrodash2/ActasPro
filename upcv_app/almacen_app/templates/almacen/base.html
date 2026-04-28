@@ -286,6 +286,7 @@
       <ul class="sidebar-submenu">
        
         <li><a href="{% url 'almacen:user_create' %}">Usuarios</a></li>
+        <li><a href="{% url 'actas_app:dashboard' %}">Módulo de Actas</a></li>
 
         <li><a href="{% url 'almacen:editar_institucion' %}">Institución</a></li>
         <li><a href="#">Manuales</a></li>
@@ -314,6 +315,15 @@
                   <svg class="fill-icon">
                     <use href="{% url 'almacen:crear_form1h' %}"></use>
                   </svg><span>Formulario 1H</span></a>
+
+              </li>
+                <li class="sidebar-list"><i class="fa fa-thumb-tack"></i><a class="sidebar-link " href="{% url 'actas_app:dashboard' %}">
+                  <svg class="stroke-icon">
+                    <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
+                  </svg>
+                  <svg class="fill-icon">
+                    <use href="../assets/svg/icon-sprite.svg#fill-gallery"></use>
+                  </svg><span>Actas Consistoriales</span></a>
 
               </li>
                               <li class="sidebar-list"><i class="fa fa-thumb-tack"></i><a class="sidebar-link " href="{% url 'almacen:ver_stock_formulario_1h' %}">
