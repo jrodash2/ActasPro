@@ -1,0 +1,27 @@
+{% extends 'almacen/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid">
+  <div class="d-flex justify-content-between mb-3">
+    <h4>Actas</h4>
+    <a class="btn btn-outline-primary" href="{% url 'actas_app:sesion_list' %}">Ir a sesiones</a>
+  </div>
+  <div class="card"><div class="card-body">
+    <table class="table table-striped">
+      <thead><tr><th>No. Acta</th><th>Sesión</th><th>Estado</th><th>Versión</th><th>Acción</th></tr></thead>
+      <tbody>
+        {% for acta in actas %}
+          <tr>
+            <td>{{ acta.numero_acta }}/{{ acta.anio }}</td>
+            <td>{{ acta.sesion }}</td>
+            <td><span class="badge badge-light-info">{{ acta.get_estado_display }}</span></td>
+            <td>{{ acta.version }}</td>
+            <td><a class="btn btn-sm btn-primary" href="{% url 'actas_app:acta_edit' acta.sesion_id %}">Ver / Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">No hay actas registradas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div></div>
+</div></div>
+{% endblock %}
