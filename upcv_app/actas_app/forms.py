@@ -5,14 +5,19 @@ from .models import (
     ActaSesion,
     AcuerdoConsistorial,
     AgendaPlantilla,
+    AreaInformeCatalogo,
     AsistenciaSesion,
     AsuntoNuevoSesion,
     AsuntoPendiente,
     CorrespondenciaSesion,
     InformeSesion,
+    MiembroConsistorio,
     PuntoAgendaSesion,
+    PuntoAgendaPlantilla,
     SeguimientoAsuntoPendiente,
     SesionConsistorial,
+    TextoBaseActa,
+    TipoSesion,
 )
 
 
@@ -176,4 +181,71 @@ class ActaSesionForm(forms.ModelForm):
             "contenido_borrador": forms.Textarea(attrs={"class": "form-control", "rows": 8}),
             "contenido_final": forms.Textarea(attrs={"class": "form-control", "rows": 8}),
             "estado": forms.Select(attrs={"class": "form-control"}),
+        }
+
+
+class TipoSesionForm(forms.ModelForm):
+    class Meta:
+        model = TipoSesion
+        fields = ["nombre", "descripcion", "activa"]
+        widgets = {
+            "nombre": forms.TextInput(attrs={"class": "form-control"}),
+            "descripcion": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+        }
+
+
+class MiembroConsistorioForm(forms.ModelForm):
+    class Meta:
+        model = MiembroConsistorio
+        fields = ["nombres", "apellidos", "cargo", "tipo_miembro", "activo", "observaciones"]
+        widgets = {
+            "nombres": forms.TextInput(attrs={"class": "form-control"}),
+            "apellidos": forms.TextInput(attrs={"class": "form-control"}),
+            "cargo": forms.TextInput(attrs={"class": "form-control"}),
+            "tipo_miembro": forms.Select(attrs={"class": "form-control"}),
+            "observaciones": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }
+
+
+class AgendaPlantillaForm(forms.ModelForm):
+    class Meta:
+        model = AgendaPlantilla
+        fields = ["nombre", "descripcion", "activa"]
+        widgets = {
+            "nombre": forms.TextInput(attrs={"class": "form-control"}),
+            "descripcion": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+        }
+
+
+class PuntoAgendaPlantillaForm(forms.ModelForm):
+    class Meta:
+        model = PuntoAgendaPlantilla
+        fields = ["plantilla", "seccion", "numeral", "titulo", "tipo_punto", "orden", "activo"]
+        widgets = {
+            "plantilla": forms.Select(attrs={"class": "form-control"}),
+            "seccion": forms.TextInput(attrs={"class": "form-control"}),
+            "numeral": forms.TextInput(attrs={"class": "form-control"}),
+            "titulo": forms.TextInput(attrs={"class": "form-control"}),
+            "tipo_punto": forms.Select(attrs={"class": "form-control"}),
+            "orden": forms.NumberInput(attrs={"class": "form-control"}),
+        }
+
+
+class AreaInformeCatalogoForm(forms.ModelForm):
+    class Meta:
+        model = AreaInformeCatalogo
+        fields = ["nombre", "descripcion", "activa"]
+        widgets = {
+            "nombre": forms.TextInput(attrs={"class": "form-control"}),
+            "descripcion": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }
+
+
+class TextoBaseActaForm(forms.ModelForm):
+    class Meta:
+        model = TextoBaseActa
+        fields = ["nombre", "contenido", "activo"]
+        widgets = {
+            "nombre": forms.TextInput(attrs={"class": "form-control"}),
+            "contenido": forms.Textarea(attrs={"class": "form-control", "rows": 5}),
         }

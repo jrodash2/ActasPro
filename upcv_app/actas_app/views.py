@@ -9,14 +9,20 @@ from almacen_app.utils import grupo_requerido
 from .forms import (
     ActaSesionForm,
     AcuerdoConsistorialForm,
+    AgendaPlantillaForm,
     AgendaSesionFormset,
+    AreaInformeCatalogoForm,
     AsistenciaSesionFormset,
     AsuntoNuevoSesionForm,
     AsuntoPendienteForm,
     CorrespondenciaSesionForm,
     InformeSesionForm,
+    MiembroConsistorioForm,
+    PuntoAgendaPlantillaForm,
     SeguimientoAsuntoPendienteForm,
     SesionConsistorialForm,
+    TextoBaseActaForm,
+    TipoSesionForm,
 )
 from .models import (
     ActaSesion,
@@ -33,7 +39,9 @@ from .models import (
     PuntoAgendaPlantilla,
     SeguimientoAsuntoPendiente,
     SesionConsistorial,
+    TextoBaseActa,
     TipoSesion,
+    AreaInformeCatalogo,
 )
 from .services.acta_generator import generar_borrador_acta
 
@@ -404,5 +412,213 @@ def configuracion_base(request):
         "tipos_sesion": TipoSesion.objects.all(),
         "miembros": MiembroConsistorio.objects.filter(activo=True).order_by("apellidos", "nombres"),
         "plantillas": AgendaPlantilla.objects.filter(activa=True).prefetch_related("puntos"),
+        "puntos_plantilla": PuntoAgendaPlantilla.objects.select_related("plantilla").count(),
+        "textos_base": TextoBaseActa.objects.filter(activo=True).count(),
+        "areas_informe": AreaInformeCatalogo.objects.filter(activa=True).count(),
     }
     return render(request, "actas_app/configuracion_base.html", context)
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def tipo_sesion_list(request):
+    return render(request, "actas_app/catalog_list.html", {
+        "title": "Tipos de sesión",
+        "items": TipoSesion.objects.all(),
+        "new_url": "actas_app:tipo_sesion_create",
+        "edit_url": "actas_app:tipo_sesion_edit",
+    })
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def tipo_sesion_create(request):
+    form = TipoSesionForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Tipo de sesión creado.")
+        return redirect("actas_app:tipo_sesion_list")
+    return render(request, "actas_app/simple_form.html", {"title": "Nuevo tipo de sesión", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def tipo_sesion_edit(request, pk):
+    item = get_object_or_404(TipoSesion, pk=pk)
+    form = TipoSesionForm(request.POST or None, instance=item)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Tipo de sesión actualizado.")
+        return redirect("actas_app:tipo_sesion_list")
+    return render(request, "actas_app/simple_form.html", {"title": "Editar tipo de sesión", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def miembro_list(request):
+    return render(request, "actas_app/catalog_list.html", {
+        "title": "Miembros del consistorio",
+        "items": MiembroConsistorio.objects.order_by("apellidos", "nombres"),
+        "new_url": "actas_app:miembro_create",
+        "edit_url": "actas_app:miembro_edit",
+    })
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def miembro_create(request):
+    form = MiembroConsistorioForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Miembro creado.")
+        return redirect("actas_app:miembro_list")
+    return render(request, "actas_app/simple_form.html", {"title": "Nuevo miembro", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def miembro_edit(request, pk):
+    item = get_object_or_404(MiembroConsistorio, pk=pk)
+    form = MiembroConsistorioForm(request.POST or None, instance=item)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Miembro actualizado.")
+        return redirect("actas_app:miembro_list")
+    return render(request, "actas_app/simple_form.html", {"title": "Editar miembro", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def plantilla_list(request):
+    return render(request, "actas_app/catalog_list.html", {
+        "title": "Plantillas de agenda",
+        "items": AgendaPlantilla.objects.all(),
+        "new_url": "actas_app:plantilla_create",
+        "edit_url": "actas_app:plantilla_edit",
+    })
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def plantilla_create(request):
+    form = AgendaPlantillaForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Plantilla creada.")
+        return redirect("actas_app:plantilla_list")
+    return render(request, "actas_app/simple_form.html", {"title": "Nueva plantilla", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def plantilla_edit(request, pk):
+    item = get_object_or_404(AgendaPlantilla, pk=pk)
+    form = AgendaPlantillaForm(request.POST or None, instance=item)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Plantilla actualizada.")
+        return redirect("actas_app:plantilla_list")
+    return render(request, "actas_app/simple_form.html", {"title": "Editar plantilla", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def punto_plantilla_list(request):
+    items = PuntoAgendaPlantilla.objects.select_related("plantilla").order_by("plantilla__nombre", "orden")
+    return render(request, "actas_app/catalog_list.html", {
+        "title": "Puntos de agenda plantilla",
+        "items": items,
+        "new_url": "actas_app:punto_plantilla_create",
+        "edit_url": "actas_app:punto_plantilla_edit",
+    })
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def punto_plantilla_create(request):
+    form = PuntoAgendaPlantillaForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Punto de plantilla creado.")
+        return redirect("actas_app:punto_plantilla_list")
+    return render(request, "actas_app/simple_form.html", {"title": "Nuevo punto de plantilla", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def punto_plantilla_edit(request, pk):
+    item = get_object_or_404(PuntoAgendaPlantilla, pk=pk)
+    form = PuntoAgendaPlantillaForm(request.POST or None, instance=item)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Punto de plantilla actualizado.")
+        return redirect("actas_app:punto_plantilla_list")
+    return render(request, "actas_app/simple_form.html", {"title": "Editar punto de plantilla", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def texto_base_list(request):
+    return render(request, "actas_app/catalog_list.html", {
+        "title": "Textos base de acta",
+        "items": TextoBaseActa.objects.all(),
+        "new_url": "actas_app:texto_base_create",
+        "edit_url": "actas_app:texto_base_edit",
+    })
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def texto_base_create(request):
+    form = TextoBaseActaForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Texto base creado.")
+        return redirect("actas_app:texto_base_list")
+    return render(request, "actas_app/simple_form.html", {"title": "Nuevo texto base", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def texto_base_edit(request, pk):
+    item = get_object_or_404(TextoBaseActa, pk=pk)
+    form = TextoBaseActaForm(request.POST or None, instance=item)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Texto base actualizado.")
+        return redirect("actas_app:texto_base_list")
+    return render(request, "actas_app/simple_form.html", {"title": "Editar texto base", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def area_informe_list(request):
+    return render(request, "actas_app/catalog_list.html", {
+        "title": "Áreas de informe",
+        "items": AreaInformeCatalogo.objects.all(),
+        "new_url": "actas_app:area_informe_create",
+        "edit_url": "actas_app:area_informe_edit",
+    })
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def area_informe_create(request):
+    form = AreaInformeCatalogoForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Área de informe creada.")
+        return redirect("actas_app:area_informe_list")
+    return render(request, "actas_app/simple_form.html", {"title": "Nueva área de informe", "form": form})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def area_informe_edit(request, pk):
+    item = get_object_or_404(AreaInformeCatalogo, pk=pk)
+    form = AreaInformeCatalogoForm(request.POST or None, instance=item)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Área de informe actualizada.")
+        return redirect("actas_app:area_informe_list")
+    return render(request, "actas_app/simple_form.html", {"title": "Editar área de informe", "form": form})

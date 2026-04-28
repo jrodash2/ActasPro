@@ -3,9 +3,12 @@
 <div class="page-body"><div class="container-fluid">
   <h4>Configuración base del módulo de actas</h4>
   <div class="row">
-    <div class="col-md-4"><div class="card"><div class="card-header">Tipos de sesión</div><div class="card-body"><ul>{% for t in tipos_sesion %}<li>{{ t.nombre }}</li>{% empty %}<li>Sin tipos registrados.</li>{% endfor %}</ul></div></div></div>
-    <div class="col-md-4"><div class="card"><div class="card-header">Miembros activos</div><div class="card-body"><ul>{% for m in miembros|slice:':10' %}<li>{{ m.nombre_completo }} - {{ m.cargo }}</li>{% empty %}<li>Sin miembros.</li>{% endfor %}</ul></div></div></div>
-    <div class="col-md-4"><div class="card"><div class="card-header">Plantillas de agenda</div><div class="card-body"><ul>{% for p in plantillas %}<li>{{ p.nombre }} ({{ p.puntos.count }} puntos)</li>{% empty %}<li>Sin plantillas.</li>{% endfor %}</ul></div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-header">Tipos de sesión</div><div class="card-body"><p>Total: {{ tipos_sesion|length }}</p><a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:tipo_sesion_list' %}">Ver</a> <a class="btn btn-sm btn-primary" href="{% url 'actas_app:tipo_sesion_create' %}">Nuevo</a></div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-header">Miembros del consistorio</div><div class="card-body"><p>Activos: {{ miembros|length }}</p><a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:miembro_list' %}">Ver</a> <a class="btn btn-sm btn-primary" href="{% url 'actas_app:miembro_create' %}">Nuevo</a></div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-header">Plantillas de agenda</div><div class="card-body"><p>Total: {{ plantillas|length }}</p><a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:plantilla_list' %}">Ver</a> <a class="btn btn-sm btn-primary" href="{% url 'actas_app:plantilla_create' %}">Nueva</a></div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-header">Puntos de agenda plantilla</div><div class="card-body"><p>Total: {{ puntos_plantilla }}</p><a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:punto_plantilla_list' %}">Ver</a> <a class="btn btn-sm btn-primary" href="{% url 'actas_app:punto_plantilla_create' %}">Nuevo</a></div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-header">Textos base de acta</div><div class="card-body"><p>Activos: {{ textos_base }}</p><a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:texto_base_list' %}">Ver</a> <a class="btn btn-sm btn-primary" href="{% url 'actas_app:texto_base_create' %}">Nuevo</a></div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-header">Áreas de informe</div><div class="card-body"><p>Activas: {{ areas_informe }}</p><a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:area_informe_list' %}">Ver</a> <a class="btn btn-sm btn-primary" href="{% url 'actas_app:area_informe_create' %}">Nueva</a></div></div></div>
   </div>
 </div></div>
 {% endblock %}

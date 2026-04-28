@@ -3,6 +3,7 @@ from django.contrib import admin
 from .models import (
     ActaSesion,
     AcuerdoConsistorial,
+    AreaInformeCatalogo,
     AgendaPlantilla,
     AsistenciaSesion,
     AsuntoNuevoSesion,
@@ -15,6 +16,7 @@ from .models import (
     PuntoAgendaSesion,
     SeguimientoAsuntoPendiente,
     SesionConsistorial,
+    TextoBaseActa,
     TipoSesion,
 )
 
@@ -126,3 +128,17 @@ class BitacoraSesionAdmin(admin.ModelAdmin):
     list_filter = ("accion",)
     search_fields = ("referencia", "detalle")
     ordering = ("-fecha",)
+
+
+@admin.register(AreaInformeCatalogo)
+class AreaInformeCatalogoAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "activa", "actualizado_en")
+    list_filter = ("activa",)
+    search_fields = ("nombre", "descripcion")
+
+
+@admin.register(TextoBaseActa)
+class TextoBaseActaAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "activo", "actualizado_en")
+    list_filter = ("activo",)
+    search_fields = ("nombre", "contenido")
