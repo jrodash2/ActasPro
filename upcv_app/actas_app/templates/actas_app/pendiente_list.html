@@ -1,0 +1,7 @@
+{% extends 'almacen/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid"><h4>Asuntos pendientes</h4>
+<a class="btn btn-primary mb-3" href="{% url 'actas_app:pendiente_create' %}">Nuevo pendiente</a>
+<div class="card"><div class="card-body"><table class="table table-striped"><thead><tr><th>Título</th><th>Estado</th><th>Prioridad</th><th>Responsable</th><th></th></tr></thead><tbody>{% for p in pendientes %}<tr><td>{{ p.titulo }}</td><td><span class="badge badge-light-warning">{{ p.get_estado_display }}</span></td><td>{{ p.get_prioridad_display }}</td><td>{{ p.responsable }}</td><td><a href="{% url 'actas_app:pendiente_detail' p.pk %}">Detalle</a></td></tr>{% empty %}<tr><td colspan="5">Sin pendientes.</td></tr>{% endfor %}</tbody></table></div></div>
+</div></div>
+{% endblock %}
