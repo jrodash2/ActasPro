@@ -1,0 +1,25 @@
+{% extends 'almacen/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid">
+  <div class="d-flex justify-content-between mb-3">
+    <h4>{{ title }}</h4>
+    <a class="btn btn-primary" href="{% url new_url %}">Nuevo</a>
+  </div>
+  <div class="card"><div class="card-body">
+    <table class="table table-striped">
+      <thead><tr><th>#</th><th>Registro</th><th>Acciones</th></tr></thead>
+      <tbody>
+        {% for item in items %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ item }}</td>
+            <td><a class="btn btn-sm btn-outline-primary" href="{% url edit_url item.pk %}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3">No hay registros.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div></div>
+</div></div>
+{% endblock %}

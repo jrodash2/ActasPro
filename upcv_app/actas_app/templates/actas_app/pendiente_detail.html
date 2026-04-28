@@ -1,0 +1,8 @@
+{% extends 'almacen/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid"><h4>{{ pendiente.titulo }}</h4>
+<div class="card"><div class="card-body"><p>{{ pendiente.descripcion }}</p><p><strong>Estado:</strong> {{ pendiente.get_estado_display }}</p>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Registrar seguimiento</button></form>
+<hr><h6>Seguimientos</h6><ul>{% for s in seguimientos %}<li>{{ s.fecha }} - {{ s.detalle }} ({{ s.estado_anterior }} → {{ s.estado_nuevo }})</li>{% empty %}<li>Sin seguimientos.</li>{% endfor %}</ul></div></div>
+</div></div>
+{% endblock %}
