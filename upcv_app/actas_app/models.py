@@ -376,11 +376,9 @@ class ActaSesion(TimeStampedModel):
         ultimo = cls.objects.filter(anio=anio).aggregate(max_n=Max("numero_acta"))["max_n"] or 0
         return ultimo + 1
 
-    def clean(self):
-        if self.estado == self.Estado.APROBADA and not self.fecha_aprobacion:
-            raise ValidationError("Acta aprobada debe tener fecha de aprobación.")
-
     def save(self, *args, **kwargs):
+        if self.estado == self.Estado.APROBADA and not self.fecha_aprobacion:
+            self.fecha_aprobacion = timezone.now()
         if self.pk:
             anterior = ActaSesion.objects.filter(pk=self.pk).first()
             if anterior and anterior.estado == self.Estado.APROBADA and self.estado == self.Estado.APROBADA:

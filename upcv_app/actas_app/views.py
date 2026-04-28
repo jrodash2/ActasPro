@@ -411,6 +411,9 @@ def acta_edit(request, sesion_id):
         form = ActaSesionForm(request.POST, instance=acta)
         if form.is_valid():
             acta = form.save(commit=False)
+            if acta.estado == ActaSesion.Estado.APROBADA and not acta.contenido_final.strip():
+                messages.error(request, "Para aprobar el acta debes completar el contenido final.")
+                return render(request, "actas_app/acta_edit.html", {"sesion": sesion, "acta": acta, "form": form})
             if acta.estado == ActaSesion.Estado.EN_REVISION:
                 acta.revisado_por = request.user
             if acta.estado == ActaSesion.Estado.APROBADA:
@@ -425,6 +428,7 @@ def acta_edit(request, sesion_id):
             registrar_bitacora(request.user, str(acta), "edición de acta", f"Estado: {acta.estado}")
             messages.success(request, "Acta actualizada.")
             return redirect("actas_app:sesion_detail", pk=sesion.pk)
+        messages.error(request, f"No se pudo guardar el acta. {form.errors.as_text()}")
     else:
         form = ActaSesionForm(instance=acta)
 
