@@ -5,6 +5,7 @@
 {% if form.errors %}
 <div class="alert alert-danger">No se pudo guardar el acta. {{ form.errors }}</div>
 {% endif %}
-<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Guardar acta</button> <a class="btn btn-success" href="{% url 'actas_app:acta_export_word' acta.pk %}">Descargar Word</a> <a class="btn btn-light" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Volver</a></form></div></div>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Guardar acta</button> <a class="btn btn-light" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Volver</a></form>
+<div class="mt-2"><a class="btn btn-success w-100 w-sm-auto" href="{% url 'actas_app:acta_export_word' acta.pk %}">Descargar Word</a></div></div></div>
 </div></div>
 {% endblock %}
