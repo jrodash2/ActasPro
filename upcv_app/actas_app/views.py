@@ -45,7 +45,7 @@ from .models import (
     AreaInformeCatalogo,
 )
 from .services.acta_generator import generar_borrador_acta
-from .services.docx_export import build_acta_docx
+from .services.docx_export import build_acta_docx_bytes, get_acta_export_content
 
 
 def registrar_bitacora(usuario, referencia, accion, detalle=""):
@@ -458,26 +458,26 @@ def acta_generar(request, sesion_id):
 
 @login_required
 @grupo_requerido("Administrador", "Almacen")
-def acta_export_word(request, sesion_id):
-    sesion = get_object_or_404(SesionConsistorial, pk=sesion_id)
-    acta = getattr(sesion, "acta", None)
-    if not acta:
-        messages.error(request, "La sesión aún no tiene acta para exportar.")
-        return redirect("actas_app:sesion_detail", pk=sesion.pk)
+def acta_export_word(request, acta_id):
+    acta = get_object_or_404(ActaSesion.objects.select_related("sesion"), pk=acta_id)
+    sesion = acta.sesion
 
-    contenido = (acta.contenido_final or "").strip() or (acta.contenido_borrador or "").strip()
-    if not contenido:
-        messages.error(request, "El acta no tiene contenido para exportar a Word.")
+    if not get_acta_export_content(acta):
+        messages.error(request, "El acta no tiene contenido final ni borrador para exportar a Word.")
         return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
 
     try:
-        doc_stream = build_acta_docx(acta)
+        doc_bytes = build_acta_docx_bytes(acta)
     except ModuleNotFoundError:
         messages.error(request, "No está instalada la librería python-docx en el servidor.")
         return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
-    filename = f"Acta_Sesion_{acta.numero_acta}-{acta.anio}.docx"
+    except ValueError as error:
+        messages.error(request, str(error))
+        return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
+
+    filename = f"Acta_{acta.numero_acta}-{acta.anio}.docx"
     response = HttpResponse(
-        doc_stream.getvalue(),
+        doc_bytes,
         content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
