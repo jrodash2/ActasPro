@@ -413,23 +413,30 @@ def acta_edit(request, sesion_id):
         form = ActaSesionForm(request.POST, instance=acta)
         if form.is_valid():
             acta = form.save(commit=False)
-            if acta.estado == ActaSesion.Estado.APROBADA and not acta.contenido_final.strip():
-                messages.error(request, "Para aprobar el acta debes completar el contenido final.")
-                return render(request, "actas_app/acta_edit.html", {"sesion": sesion, "acta": acta, "form": form})
-            if acta.estado == ActaSesion.Estado.EN_REVISION:
+            accion = request.POST.get("accion", "guardar")
+
+            if accion == "revision":
+                acta.estado = ActaSesion.Estado.EN_REVISION
                 acta.revisado_por = request.user
-            if acta.estado == ActaSesion.Estado.APROBADA:
+            elif accion == "aprobar":
+                acta.estado = ActaSesion.Estado.APROBADA
+                if not (acta.contenido_final or "").strip():
+                    messages.error(request, "Para aprobar el acta debes completar el contenido final.")
+                    return render(request, "actas_app/acta_edit.html", {"sesion": sesion, "acta": acta, "form": form})
                 acta.aprobado_por = request.user
                 acta.fecha_aprobacion = timezone.now()
                 sesion.estado = SesionConsistorial.Estado.APROBADA
                 sesion.aprobada_por = request.user
                 sesion.fecha_aprobacion = timezone.now()
                 sesion.save(update_fields=["estado", "aprobada_por", "fecha_aprobacion", "actualizado_en"])
+            else:
+                acta.estado = ActaSesion.Estado.BORRADOR
+
             acta.version += 1
             acta.save()
             registrar_bitacora(request.user, str(acta), "edición de acta", f"Estado: {acta.estado}")
-            messages.success(request, "Acta actualizada.")
-            return redirect("actas_app:sesion_detail", pk=sesion.pk)
+            messages.success(request, "Acta actualizada correctamente.")
+            return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
         messages.error(request, f"No se pudo guardar el acta. {form.errors.as_text()}")
     else:
         form = ActaSesionForm(instance=acta)
