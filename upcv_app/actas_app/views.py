@@ -1,7 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -45,7 +44,6 @@ from .models import (
     AreaInformeCatalogo,
 )
 from .services.acta_generator import generar_borrador_acta
-from .services.docx_export import build_acta_docx_bytes, get_acta_export_content
 
 
 def registrar_bitacora(usuario, referencia, accion, detalle=""):
@@ -413,30 +411,23 @@ def acta_edit(request, sesion_id):
         form = ActaSesionForm(request.POST, instance=acta)
         if form.is_valid():
             acta = form.save(commit=False)
-            accion = request.POST.get("accion", "guardar")
-
-            if accion == "revision":
-                acta.estado = ActaSesion.Estado.EN_REVISION
+            if acta.estado == ActaSesion.Estado.APROBADA and not acta.contenido_final.strip():
+                messages.error(request, "Para aprobar el acta debes completar el contenido final.")
+                return render(request, "actas_app/acta_edit.html", {"sesion": sesion, "acta": acta, "form": form})
+            if acta.estado == ActaSesion.Estado.EN_REVISION:
                 acta.revisado_por = request.user
-            elif accion == "aprobar":
-                acta.estado = ActaSesion.Estado.APROBADA
-                if not (acta.contenido_final or "").strip():
-                    messages.error(request, "Para aprobar el acta debes completar el contenido final.")
-                    return render(request, "actas_app/acta_edit.html", {"sesion": sesion, "acta": acta, "form": form})
+            if acta.estado == ActaSesion.Estado.APROBADA:
                 acta.aprobado_por = request.user
                 acta.fecha_aprobacion = timezone.now()
                 sesion.estado = SesionConsistorial.Estado.APROBADA
                 sesion.aprobada_por = request.user
                 sesion.fecha_aprobacion = timezone.now()
                 sesion.save(update_fields=["estado", "aprobada_por", "fecha_aprobacion", "actualizado_en"])
-            else:
-                acta.estado = ActaSesion.Estado.BORRADOR
-
             acta.version += 1
             acta.save()
             registrar_bitacora(request.user, str(acta), "edición de acta", f"Estado: {acta.estado}")
-            messages.success(request, "Acta actualizada correctamente.")
-            return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
+            messages.success(request, "Acta actualizada.")
+            return redirect("actas_app:sesion_detail", pk=sesion.pk)
         messages.error(request, f"No se pudo guardar el acta. {form.errors.as_text()}")
     else:
         form = ActaSesionForm(instance=acta)
@@ -461,36 +452,6 @@ def acta_generar(request, sesion_id):
     registrar_bitacora(request.user, str(sesion), "generación de acta", "Borrador generado automáticamente")
     messages.success(request, "Borrador de acta generado.")
     return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
-
-
-@login_required
-@grupo_requerido("Administrador", "Almacen")
-def acta_export_word(request, sesion_id):
-    sesion = get_object_or_404(SesionConsistorial, pk=sesion_id)
-    acta = get_object_or_404(ActaSesion.objects.select_related("sesion"), sesion_id=sesion.pk)
-
-    if not get_acta_export_content(acta):
-        messages.error(request, "El acta no tiene contenido final ni borrador para exportar a Word.")
-        return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
-
-    try:
-        doc_bytes = build_acta_docx_bytes(acta)
-    except ModuleNotFoundError:
-        messages.error(request, "No está instalada la librería python-docx en el servidor.")
-        return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
-    except ValueError as error:
-        messages.error(request, str(error))
-        return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
-
-    filename = f"Acta_{acta.numero_acta}-{acta.anio}.docx"
-    response = HttpResponse(
-        doc_bytes,
-        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    )
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
-    response["Content-Length"] = str(len(doc_bytes))
-    response["Cache-Control"] = "no-store"
-    return response
 
 
 @login_required

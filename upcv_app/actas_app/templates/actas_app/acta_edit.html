@@ -1,62 +1,10 @@
 {% extends 'almacen/base.html' %}
-{% load static %}
 {% block content %}
-<div class="page-body">
-  <div class="container-fluid">
-    <div class="page-title">
-      <div class="row">
-        <div class="col-sm-6">
-          <h3>Acta de sesión {{ sesion.numero }}/{{ sesion.anio }}</h3>
-        </div>
-        <div class="col-sm-6">
-          <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'actas_app:dashboard' %}">Actas</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'actas_app:sesion_detail' sesion.pk %}">Sesión {{ sesion.numero }}</a></li>
-            <li class="breadcrumb-item active">Acta</li>
-          </ol>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
-        <div class="row g-3 align-items-center">
-          <div class="col-md-8">
-            <h5 class="mb-1">ACTA NÚMERO {{ acta.numero_acta }}/{{ acta.anio }}</h5>
-            <p class="mb-0">Sesión relacionada: {{ sesion }}</p>
-          </div>
-          <div class="col-md-4 text-md-end">
-            <span class="badge badge-light-primary">Versión {{ acta.version }}</span>
-            <span class="badge badge-light-info">{{ acta.get_estado_display }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
-        <form method="post">
-          {% csrf_token %}
-          <div class="mb-3">
-            <label class="form-label" for="id_contenido_borrador">Contenido borrador</label>
-            {{ form.contenido_borrador }}
-          </div>
-          <div class="mb-3">
-            <label class="form-label" for="id_contenido_final">Contenido final</label>
-            {{ form.contenido_final }}
-          </div>
-          {{ form.estado.as_hidden }}
-
-          <div class="d-grid gap-2 d-md-flex flex-wrap">
-            <button class="btn btn-primary" type="submit" name="accion" value="guardar">Guardar acta</button>
-            <button class="btn btn-warning" type="submit" name="accion" value="revision">Enviar a revisión</button>
-            <button class="btn btn-success" type="submit" name="accion" value="aprobar">Aprobar acta</button>
-            <a class="btn btn-info" href="{% url 'actas_app:acta_export_word' acta.pk %}">Descargar Word</a>
-            <a class="btn btn-light" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Volver a la sesión</a>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
+<div class="page-body"><div class="container-fluid"><h4>Acta de sesión {{ sesion.numero }}/{{ sesion.anio }}</h4>
+<div class="card"><div class="card-body"><p><strong>No. acta:</strong> {{ acta.numero_acta }}/{{ acta.anio }} | <strong>Versión:</strong> {{ acta.version }}</p>
+{% if form.errors %}
+<div class="alert alert-danger">No se pudo guardar el acta. {{ form.errors }}</div>
+{% endif %}
+<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Guardar acta</button> <a class="btn btn-light" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Volver</a></form></div></div>
+</div></div>
 {% endblock %}
