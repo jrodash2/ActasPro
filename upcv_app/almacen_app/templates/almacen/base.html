@@ -143,7 +143,7 @@
                 <div class="form search-form mb-0">
                   <div class="input-group"> <span class="input-show"> 
                       <svg id="searchIcon">
-                        <use href="../assets/svg/icon-sprite.svg#search-header"></use>
+                        <use href="{% static 'assets/svg/icon-sprite.svg' %}#search-header"></use>
                       </svg>
                       <div id="searchInput">
                         <input type="search" placeholder="Search">
@@ -237,12 +237,12 @@
             <div class="back-btn"><i class="fa fa-angle-left"> </i></div>
             <div class="toggle-sidebar"><i class="status_toggle middle sidebar-toggle" data-feather="grid"> </i></div>
           </div>
-          <div class="logo-icon-wrapper"><a href=""><img class="img-fluid" src="../assets/images/logo/logo-icon.png" alt=""></a></div>
+          <div class="logo-icon-wrapper"><a href=""><img class="img-fluid" src="{% static 'assets/images/logo/logo-icon.png' %}" alt=""></a></div>
           <nav class="sidebar-main">
             <div class="left-arrow" id="left-arrow"><i data-feather="arrow-left"></i></div>
             <div id="sidebar-menu">
               <ul class="sidebar-links" id="simple-bar">
-                <li class="back-btn"><a href=""><img class="img-fluid" src="../assets/images/logo/logo-icon.png" alt=""></a>
+                <li class="back-btn"><a href=""><img class="img-fluid" src="{% static 'assets/images/logo/logo-icon.png' %}" alt=""></a>
                   <div class="mobile-back text-end"> <span>Back </span><i class="fa fa-angle-right ps-2" aria-hidden="true"></i></div>
                 </li>
                 <li class="sidebar-main-title">
@@ -261,10 +261,10 @@
   <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
     <a class="sidebar-link sidebar-title" href="#">
       <svg class="stroke-icon">
-        <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
+        <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-gallery"></use>
       </svg>
       <svg class="fill-icon">
-        <use href="../assets/svg/icon-sprite.svg#fill-gallery"></use>
+        <use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-gallery"></use>
       </svg>
       <span>Actas Consistoriales</span>
     </a>
@@ -284,10 +284,10 @@
   {% if es_administrador %}
     <li class="sidebar-list" ><i class="fa fa-thumb-tack"> </i><a class="sidebar-link " href="{% url 'almacen:dahsboard' %}">
                     <svg >
-                      <use href="../assets/svg/icon-sprite.svg#stroke-home"></use>
+                      <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-home"></use>
                     </svg>
                     <svg class="fill-icon">
-                      <use href="../assets/svg/icon-sprite.svg#fill-home"></use>
+                      <use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-home"></use>
                     </svg><span>Dashboard</span></a>
                   
                 </li>
@@ -301,10 +301,10 @@
     <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
       <a class="sidebar-link sidebar-title" href="#">
         <svg class="stroke-icon">
-          <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
+          <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-gallery"></use>
         </svg>
         <svg class="fill-icon">
-          <use href="../assets/svg/icon-sprite.svg#fill-gallery"></use>
+          <use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-gallery"></use>
         </svg>
         <span>Configuración</span>
       </a>
@@ -325,10 +325,10 @@
   {% if es_almacen %}
     <li class="sidebar-list" ><i class="fa fa-thumb-tack"> </i><a class="sidebar-link " href="{% url 'almacen:dahsboard' %}">
                     <svg >
-                      <use href="../assets/svg/icon-sprite.svg#stroke-home"></use>
+                      <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-home"></use>
                     </svg>
                     <svg class="fill-icon">
-                      <use href="../assets/svg/icon-sprite.svg#fill-home"></use>
+                      <use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-home"></use>
                     </svg><span>Dashboard</span></a>
                   
                 </li>
@@ -337,7 +337,7 @@
                 {% if crear_form1h_url %}
                 <li class="sidebar-list"><i class="fa fa-thumb-tack"></i><a class="sidebar-link " href="{{ crear_form1h_url }}">
                   <svg class="stroke-icon">
-                    <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
+                    <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-gallery"></use>
                   </svg>
                   <svg class="fill-icon">
                     <use href="{% url 'almacen:crear_form1h' %}"></use>
@@ -349,7 +349,7 @@
                 {% if stock_url %}
                               <li class="sidebar-list"><i class="fa fa-thumb-tack"></i><a class="sidebar-link " href="{{ stock_url }}">
                   <svg class="stroke-icon">
-                    <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
+                    <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-gallery"></use>
                   </svg>
                   <svg class="fill-icon">
                     <use href="{% url 'almacen:ver_stock_formulario_1h' %}"></use>
@@ -361,7 +361,7 @@
                 {% if crear_req_url %}
                               <li class="sidebar-list"><i class="fa fa-thumb-tack"></i><a class="sidebar-link " href="{{ crear_req_url }}">
                   <svg class="stroke-icon">
-                    <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
+                    <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-gallery"></use>
                   </svg>
                   <svg class="fill-icon">
                     <use href="{% url 'almacen:crear_requerimiento' %}"></use>
@@ -372,10 +372,10 @@
     <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
       <a class="sidebar-link sidebar-title" href="#">
         <svg class="stroke-icon">
-          <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
+          <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-gallery"></use>
         </svg>
         <svg class="fill-icon">
-          <use href="../assets/svg/icon-sprite.svg#fill-gallery"></use>
+          <use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-gallery"></use>
         </svg>
         <span>Departamentos</span>
       </a>
@@ -394,10 +394,10 @@
   <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
       <a class="sidebar-link sidebar-title" href="#">
         <svg class="stroke-icon">
-          <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
+          <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-gallery"></use>
         </svg>
         <svg class="fill-icon">
-          <use href="../assets/svg/icon-sprite.svg#fill-gallery"></use>
+          <use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-gallery"></use>
         </svg>
         <span>Articulos</span>
       </a>
@@ -413,10 +413,10 @@
    <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
       <a class="sidebar-link sidebar-title" href="#">
         <svg class="stroke-icon">
-          <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
+          <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-gallery"></use>
         </svg>
         <svg class="fill-icon">
-          <use href="../assets/svg/icon-sprite.svg#fill-gallery"></use>
+          <use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-gallery"></use>
         </svg>
         <span>Proveedores</span>
       </a>
@@ -431,10 +431,10 @@
       <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
       <a class="sidebar-link sidebar-title" href="#">
         <svg class="stroke-icon">
-          <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
+          <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-gallery"></use>
         </svg>
         <svg class="fill-icon">
-          <use href="../assets/svg/icon-sprite.svg#fill-gallery"></use>
+          <use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-gallery"></use>
         </svg>
         <span>Categorias</span>
       </a>
@@ -450,10 +450,10 @@
       <li class="sidebar-list"><i class="fa fa-thumb-tack"></i>
       <a class="sidebar-link sidebar-title" href="#">
         <svg class="stroke-icon">
-          <use href="../assets/svg/icon-sprite.svg#stroke-gallery"></use>
+          <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-gallery"></use>
         </svg>
         <svg class="fill-icon">
-          <use href="../assets/svg/icon-sprite.svg#fill-gallery"></use>
+          <use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-gallery"></use>
         </svg>
         <span>Unidades</span>
       </a>
@@ -505,13 +505,11 @@
 <script src="{% static 'assets/js/config.js' %}"></script>
 <!-- Plugins JS start-->
 <script src="{% static 'assets/js/sidebar-menu.js' %}"></script>
-<script src="{% static 'assets/js/sidebar-pin.js' %}"></script>
 <script src="{% static 'assets/js/slick/slick.min.js' %}"></script>
 <script src="{% static 'assets/js/slick/slick.js' %}"></script>
 <script src="{% static 'assets/js/header-slick.js' %}"></script>
 <!-- calendar js-->
 <script src="{% static 'assets/js/js-datatables/simple-datatables@latest.js' %}"></script>
-<script src="{% static 'assets/js/custom-list-product.js' %}"></script>
 <script src="{% static 'assets/js/owlcarousel/owl.carousel.js' %}"></script>
 <script src="{% static 'assets/js/ecommerce.js' %}"></script>
 <!-- Plugins JS Ends-->
