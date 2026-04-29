@@ -1,8 +1,10 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.text import slugify
 
 from almacen_app.utils import grupo_requerido
 
@@ -44,6 +46,7 @@ from .models import (
     AreaInformeCatalogo,
 )
 from .services.acta_generator import generar_borrador_acta
+from .services.docx_export import build_acta_docx
 
 
 def registrar_bitacora(usuario, referencia, accion, detalle=""):
@@ -168,9 +171,6 @@ def sesion_agenda(request, pk):
 @grupo_requerido("Administrador", "Almacen")
 def sesion_asistencia(request, pk):
     sesion = get_object_or_404(SesionConsistorial, pk=pk)
-    if not sesion.asistencias.exists():
-        for punto in sesion.puntos_agenda.all():
-            pass
     if request.method == "POST":
         formset = AsistenciaSesionFormset(request.POST, instance=sesion)
         if formset.is_valid():
@@ -181,7 +181,7 @@ def sesion_asistencia(request, pk):
             return redirect("actas_app:sesion_detail", pk=sesion.pk)
     else:
         if not sesion.asistencias.exists():
-            for miembro in sesion.moderador.__class__.objects.filter(activo=True):
+            for miembro in MiembroConsistorio.objects.filter(activo=True):
                 AsistenciaSesion.objects.get_or_create(sesion=sesion, miembro=miembro)
         formset = AsistenciaSesionFormset(instance=sesion)
     return render(request, "actas_app/sesion_asistencia.html", {"sesion": sesion, "formset": formset})
@@ -411,7 +411,8 @@ def acta_edit(request, sesion_id):
         form = ActaSesionForm(request.POST, instance=acta)
         if form.is_valid():
             acta = form.save(commit=False)
-            if acta.estado == ActaSesion.Estado.APROBADA and not acta.contenido_final.strip():
+            contenido_final = (acta.contenido_final or "").strip()
+            if acta.estado == ActaSesion.Estado.APROBADA and not contenido_final:
                 messages.error(request, "Para aprobar el acta debes completar el contenido final.")
                 return render(request, "actas_app/acta_edit.html", {"sesion": sesion, "acta": acta, "form": form})
             if acta.estado == ActaSesion.Estado.EN_REVISION:
@@ -452,6 +453,34 @@ def acta_generar(request, sesion_id):
     registrar_bitacora(request.user, str(sesion), "generación de acta", "Borrador generado automáticamente")
     messages.success(request, "Borrador de acta generado.")
     return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def acta_word_download(request, sesion_id):
+    sesion = get_object_or_404(
+        SesionConsistorial.objects.select_related("acta", "moderador", "secretario", "tipo_sesion"),
+        pk=sesion_id,
+    )
+    acta = getattr(sesion, "acta", None)
+    if not acta:
+        messages.error(request, "La sesión aún no tiene un acta creada.")
+        return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
+
+    contenido = (acta.contenido_final or acta.contenido_borrador or "").strip()
+    if not contenido:
+        messages.error(request, "El acta no tiene contenido para exportar.")
+        return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
+
+    document_stream, filename = build_acta_docx(acta)
+    registrar_bitacora(request.user, str(acta), "descarga de acta", "Exportación Word generada")
+
+    response = HttpResponse(
+        document_stream.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{slugify(filename)}.docx"'
+    return response
 
 
 @login_required
