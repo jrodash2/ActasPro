@@ -481,6 +481,8 @@ def acta_export_word(request, acta_id):
         content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Length"] = str(len(doc_bytes))
+    response["Cache-Control"] = "no-store"
     return response
 
 
