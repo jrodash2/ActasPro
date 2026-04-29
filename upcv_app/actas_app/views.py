@@ -458,9 +458,9 @@ def acta_generar(request, sesion_id):
 
 @login_required
 @grupo_requerido("Administrador", "Almacen")
-def acta_export_word(request, acta_id):
-    acta = get_object_or_404(ActaSesion.objects.select_related("sesion"), pk=acta_id)
-    sesion = acta.sesion
+def acta_export_word(request, sesion_id):
+    sesion = get_object_or_404(SesionConsistorial, pk=sesion_id)
+    acta = get_object_or_404(ActaSesion.objects.select_related("sesion"), sesion_id=sesion.pk)
 
     if not get_acta_export_content(acta):
         messages.error(request, "El acta no tiene contenido final ni borrador para exportar a Word.")
@@ -481,6 +481,8 @@ def acta_export_word(request, acta_id):
         content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Length"] = str(len(doc_bytes))
+    response["Cache-Control"] = "no-store"
     return response
 
 
