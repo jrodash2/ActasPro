@@ -1,4 +1,5 @@
 from io import BytesIO
+from unicodedata import normalize
 
 
 def get_acta_export_content(acta):
@@ -23,7 +24,7 @@ def build_acta_docx_bytes(acta, institucion_nombre="Sistema de Actas Consistoria
     encabezado.alignment = WD_ALIGN_PARAGRAPH.CENTER
     encabezado.runs[0].font.size = Pt(11)
 
-    titulo = document.add_paragraph(f"ACTA NÚMERO {acta.numero_acta}-{acta.anio}")
+    titulo = document.add_paragraph(f"ACTA NÚMERO {acta.numero_acta}/{acta.anio}")
     titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     titulo_run = titulo.runs[0]
     titulo_run.bold = True
@@ -51,3 +52,16 @@ def build_acta_docx_bytes(acta, institucion_nombre="Sistema de Actas Consistoria
     stream = BytesIO()
     document.save(stream)
     return stream.getvalue()
+
+
+def build_acta_docx(acta, institucion_nombre="Sistema de Actas Consistoriales"):
+    bytes_content = build_acta_docx_bytes(acta, institucion_nombre=institucion_nombre)
+    stream = BytesIO(bytes_content)
+    stream.seek(0)
+    filename = f"acta-{acta.numero_acta}-{acta.anio}"
+    return stream, _sanitize_filename(filename)
+
+
+def _sanitize_filename(value):
+    normalized = normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    return "".join(char if char.isalnum() or char in "-_" else "-" for char in normalized).strip("-_") or "acta"

@@ -4,7 +4,6 @@ from django.db.models import Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.utils.text import slugify
 
 from almacen_app.utils import grupo_requerido
 
@@ -479,7 +478,7 @@ def acta_word_download(request, sesion_id):
         document_stream.getvalue(),
         content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
-    response["Content-Disposition"] = f'attachment; filename="{slugify(filename)}.docx"'
+    response["Content-Disposition"] = f'attachment; filename="{filename}.docx"'
     return response
 
 

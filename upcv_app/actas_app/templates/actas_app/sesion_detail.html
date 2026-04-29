@@ -11,6 +11,7 @@
 <a class="btn btn-sm btn-primary" href="{% url 'actas_app:acuerdo_list' %}">Acuerdos</a>
 <a class="btn btn-sm btn-secondary" href="{% url 'actas_app:acta_generar' sesion.pk %}">Generar acta</a>
 <a class="btn btn-sm btn-warning" href="{% url 'actas_app:acta_edit' sesion.pk %}">Editar acta</a>
+<a class="btn btn-sm btn-success" href="{% url 'actas_app:acta_word_download' sesion.pk %}">Descargar Word</a>
 </div>
 <div class="card"><div class="card-body">
 <p><strong>Fecha:</strong> {{ sesion.fecha }} | <strong>Lugar:</strong> {{ sesion.lugar }}</p>
