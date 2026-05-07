@@ -1,7 +1,29 @@
 {% extends 'almacen/base.html' %}
 {% block content %}
-<div class="page-body"><div class="container-fluid"><div class="page-title"><h4>Sesiones consistoriales</h4></div>
-<a class="btn btn-primary mb-3" href="{% url 'actas_app:sesion_create' %}">Nueva sesión</a>
-<div class="card"><div class="card-body"><table class="table table-striped"><thead><tr><th>Número</th><th>Fecha</th><th>Tipo</th><th>Estado</th><th>Quórum</th><th></th></tr></thead><tbody>{% for sesion in sesiones %}<tr><td>{{ sesion.numero }}/{{ sesion.anio }}</td><td>{{ sesion.fecha }}</td><td>{{ sesion.tipo_sesion }}</td><td><span class="badge badge-light-primary">{{ sesion.get_estado_display }}</span></td><td>{{ sesion.quorum_alcanzado }}/{{ sesion.quorum_requerido }}</td><td><a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Detalle</a> <a class="btn btn-sm btn-outline-secondary" href="{% url 'actas_app:sesion_edit' sesion.pk %}">Editar</a></td></tr>{% empty %}<tr><td colspan="6">Sin sesiones.</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="page-body"><div class="container-fluid">
+  {% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}{% endif %}
+  <div class="page-title"><h4>Sesiones consistoriales</h4><p class="mb-0 text-muted">Acciones rápidas para agenda, generación, revisión, aprobación y descarga del acta.</p></div>
+  <a class="btn btn-primary mb-3" href="{% url 'actas_app:sesion_create' %}">Nueva sesión</a>
+  <div class="card"><div class="card-body"><table class="table table-striped">
+    <thead><tr><th>Número</th><th>Fecha</th><th>Tipo</th><th>Estado</th><th>Quórum</th><th>Acciones</th></tr></thead>
+    <tbody>{% for sesion in sesiones %}
+      <tr>
+        <td>{{ sesion.numero }}/{{ sesion.anio }}</td><td>{{ sesion.fecha }}</td><td>{{ sesion.tipo_sesion }}</td>
+        <td><span class="badge {% if sesion.estado == 'borrador' %}badge-light-secondary{% elif sesion.estado == 'en_revision' %}badge-light-warning{% elif sesion.estado == 'aprobada' %}badge-light-success{% else %}badge-light-info{% endif %}">{{ sesion.get_estado_display }}</span></td>
+        <td>{{ sesion.quorum_alcanzado }}/{{ sesion.quorum_requerido }}</td>
+        <td class="d-flex flex-wrap gap-1">
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Detalle</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'actas_app:sesion_agenda' sesion.pk %}">Ver agenda</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'actas_app:sesion_agenda' sesion.pk %}">Editar agenda</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'actas_app:acta_generar' sesion.pk %}">Generar acta</a>
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:acta_edit' sesion.pk %}">Revisar acta</a>
+          {% if sesion.acta.estado == 'en_revision' %}
+            <form method="post" action="{% url 'actas_app:acta_cambiar_estado' sesion.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-success" name="accion" value="aprobar" type="submit">Aprobar acta</button></form>
+          {% endif %}
+          <a class="btn btn-sm btn-outline-success" href="{% url 'actas_app:acta_word_download' sesion.pk %}">Descargar Word</a>
+        </td>
+      </tr>
+    {% empty %}<tr><td colspan="6">Sin sesiones.</td></tr>{% endfor %}</tbody>
+  </table></div></div>
 </div></div>
 {% endblock %}
