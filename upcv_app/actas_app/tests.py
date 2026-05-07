@@ -1,10 +1,11 @@
 from datetime import date
+from decimal import Decimal
 
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import ActaSesion, AsistenciaSesion, MiembroConsistorio, PuntoAgendaSesion, SesionConsistorial, TipoSesion
+from .models import ActaSesion, AsistenciaSesion, InformeSesion, MiembroConsistorio, PuntoAgendaSesion, SesionConsistorial, TipoSesion
 from .services.acta_generator import generar_borrador_acta
 
 
@@ -308,3 +309,103 @@ class AsistenciaSesionFlowTests(TestCase):
         self.assertIn(self.moderador.nombre_completo, contenido)
         self.assertIn("Excusados:", contenido)
         self.assertIn(self.secretario.nombre_completo, contenido)
+
+
+class InformeSesionFlowTests(TestCase):
+    def setUp(self):
+        self.group, _ = Group.objects.get_or_create(name="Almacen")
+        self.user = User.objects.create_user(username="informes", password="123456")
+        self.user.groups.add(self.group)
+        self.client.login(username="informes", password="123456")
+        self.tipo, _ = TipoSesion.objects.get_or_create(nombre="Ordinaria")
+        self.moderador = MiembroConsistorio.objects.create(nombres="Mario", apellidos="Luna", cargo="Moderador")
+        self.secretario = MiembroConsistorio.objects.create(nombres="Laura", apellidos="Mendez", cargo="Secretaria")
+        self.sesion = SesionConsistorial.objects.create(
+            numero=30,
+            anio=2026,
+            tipo_sesion=self.tipo,
+            fecha=date(2026, 5, 3),
+            lugar="Salón",
+            moderador=self.moderador,
+            secretario=self.secretario,
+            creada_por=self.user,
+        )
+
+    def test_informe_financiero_calcula_saldo_final_y_vincula_sesion(self):
+        response = self.client.post(
+            reverse("actas_app:informe_create", args=[self.sesion.pk]),
+            {
+                "area": "Tesorería",
+                "expositor": "Tesorera",
+                "resumen": "Detalle adicional.",
+                "saldo_inicial": "1000.00",
+                "ingresos": "250.00",
+                "egresos": "100.00",
+                "saldo_final": "0.00",
+                "fondo_especial": "0.00",
+                "observaciones": "",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("actas_app:sesion_informes", args=[self.sesion.pk]))
+        informe = InformeSesion.objects.get(sesion=self.sesion, area="Tesorería")
+        self.assertEqual(informe.tipo_informe, InformeSesion.TipoInforme.FINANCIERO)
+        self.assertEqual(informe.saldo_final, Decimal("1150.00"))
+        self.assertTrue(any("informe guardado" in str(message).lower() for message in response.context["messages"]))
+
+    def test_no_permite_duplicar_area_fija_pero_permite_otros(self):
+        InformeSesion.objects.create(sesion=self.sesion, area="Pastor", expositor="Pastor", resumen="Informe")
+        response = self.client.post(
+            reverse("actas_app:informe_create", args=[self.sesion.pk]),
+            {"area": "Pastor", "expositor": "Otro", "resumen": "Duplicado"},
+            follow=True,
+        )
+        self.assertEqual(InformeSesion.objects.filter(sesion=self.sesion, area="Pastor").count(), 1)
+        self.assertContains(response, "Ya existe un informe de Pastor")
+
+        response = self.client.post(
+            reverse("actas_app:informe_create", args=[self.sesion.pk]),
+            {"area": "Otros", "area_otro": "Informe especial", "expositor": "Invitado", "resumen": "Contenido"},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(InformeSesion.objects.filter(sesion=self.sesion, area="Informe especial").exists())
+
+    def test_bloquea_edicion_y_eliminacion_si_acta_aprobada(self):
+        informe = InformeSesion.objects.create(sesion=self.sesion, area="Pastor", expositor="Pastor", resumen="Informe")
+        ActaSesion.objects.create(
+            sesion=self.sesion,
+            numero_acta=30,
+            anio=2026,
+            contenido_final="Acta final",
+            estado=ActaSesion.Estado.APROBADA,
+            redactado_por=self.user,
+        )
+        response = self.client.post(
+            reverse("actas_app:informe_edit", args=[informe.pk]),
+            {"area": "Pastor", "expositor": "Pastor", "resumen": "Editado"},
+            follow=True,
+        )
+        informe.refresh_from_db()
+        self.assertEqual(informe.resumen, "Informe")
+        self.assertTrue(any("ya está aprobada" in str(message).lower() for message in response.context["messages"]))
+
+        self.client.post(reverse("actas_app:informe_delete", args=[informe.pk]), follow=True)
+        self.assertTrue(InformeSesion.objects.filter(pk=informe.pk).exists())
+
+    def test_generador_acta_muestra_resumen_financiero_de_sesion(self):
+        InformeSesion.objects.create(
+            sesion=self.sesion,
+            area="Tesorería",
+            tipo_informe=InformeSesion.TipoInforme.FINANCIERO,
+            expositor="Tesorera",
+            resumen="Detalle adicional.",
+            saldo_inicial=Decimal("95668.04"),
+            ingresos=Decimal("6283.46"),
+            egresos=Decimal("5790.00"),
+        )
+        contenido = generar_borrador_acta(self.sesion)
+        self.assertIn("Tesorería. Tesorera informa", contenido)
+        self.assertIn("Q 96,161.50", contenido)
+        self.assertIn("Detalle adicional.", contenido)

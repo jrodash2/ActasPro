@@ -110,6 +110,51 @@ def contexto_flujo_acta(sesion, acta=None, usuario=None):
     }
 
 
+
+AREAS_INFORME_ESPERADAS = [
+    "Pastor",
+    "Tesorería",
+    "Purificadora",
+    "Anciano de turno",
+    "Diáconos",
+    "Femenil",
+    "Jóvenes",
+    "Educación Cristiana",
+    "Visita Jícaro",
+    "Consejera Femenil",
+    "Consejo Diáconos",
+    "Secretario",
+]
+
+
+def formato_quetzales(valor):
+    return f"Q {valor or 0:,.2f}"
+
+
+def acta_esta_aprobada(sesion):
+    acta = getattr(sesion, "acta", None)
+    return bool(acta and acta.estado == ActaSesion.Estado.APROBADA)
+
+
+def obtener_resumen_informes(sesion):
+    informes = list(sesion.informes.all().order_by("area"))
+    informes_por_area = {informe.area: informe for informe in informes}
+    esperados = []
+    for area in AREAS_INFORME_ESPERADAS:
+        informe = informes_por_area.get(area)
+        esperados.append({
+            "area": area,
+            "informe": informe,
+            "registrado": informe is not None,
+            "saldo_final": formato_quetzales(informe.saldo_final) if informe and informe.tipo_informe == InformeSesion.TipoInforme.FINANCIERO else "",
+        })
+    return {
+        "esperados": esperados,
+        "registrados": len(informes),
+        "pendientes": sum(1 for item in esperados if not item["registrado"]),
+        "financieros": [informe for informe in informes if informe.tipo_informe == InformeSesion.TipoInforme.FINANCIERO],
+    }
+
 def obtener_resumen_asistencia(sesion, total_miembros=None):
     asistencias = sesion.asistencias.select_related("miembro")
     total = total_miembros if total_miembros is not None else MiembroConsistorio.objects.filter(activo=True).count()
@@ -248,6 +293,7 @@ def sesion_detail(request, pk):
         "acta": acta,
         "resumen_asistencia": obtener_resumen_asistencia(sesion),
         "asistencia_agrupada": obtener_asistencia_agrupada(sesion),
+        "resumen_informes": obtener_resumen_informes(sesion),
     }
     context.update(contexto_flujo_acta(sesion, acta, request.user))
     return render(request, "actas_app/sesion_detail.html", context)
@@ -363,20 +409,80 @@ def sesion_asistencia(request, pk):
 
 @login_required
 @grupo_requerido("Administrador", "Almacen")
+def sesion_informes(request, sesion_id):
+    sesion = get_object_or_404(SesionConsistorial.objects.select_related("tipo_sesion"), pk=sesion_id)
+    acta = getattr(sesion, "acta", None)
+    informes = sesion.informes.all().order_by("area")
+    context = {
+        "sesion": sesion,
+        "acta": acta,
+        "informes": informes,
+        "resumen_informes": obtener_resumen_informes(sesion),
+        "bloqueado": acta_esta_aprobada(sesion),
+    }
+    context.update(contexto_flujo_acta(sesion, acta, request.user))
+    return render(request, "actas_app/sesion_informes.html", context)
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
 def informe_create(request, sesion_id):
     sesion = get_object_or_404(SesionConsistorial, pk=sesion_id)
+    if acta_esta_aprobada(sesion):
+        messages.error(request, "El acta ya está aprobada. No se pueden registrar informes.")
+        return redirect("actas_app:sesion_informes", sesion_id=sesion.pk)
+
     if request.method == "POST":
-        form = InformeSesionForm(request.POST)
+        form = InformeSesionForm(request.POST, sesion=sesion)
         if form.is_valid():
             informe = form.save(commit=False)
             informe.sesion = sesion
             informe.save()
             registrar_bitacora(request.user, str(sesion), "registro de informe", informe.area)
-            messages.success(request, "Informe agregado.")
-            return redirect("actas_app:sesion_detail", pk=sesion.pk)
+            messages.success(request, "Informe guardado correctamente.")
+            return redirect("actas_app:sesion_informes", sesion_id=sesion.pk)
+        messages.error(request, "No se pudo guardar el informe. Revisa los campos marcados.")
     else:
-        form = InformeSesionForm()
-    return render(request, "actas_app/simple_form.html", {"title": "Registrar informe", "form": form, "sesion": sesion})
+        form = InformeSesionForm(sesion=sesion)
+    return render(request, "actas_app/informe_form.html", {"title": "Registrar informe", "form": form, "sesion": sesion})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def informe_edit(request, pk):
+    informe = get_object_or_404(InformeSesion.objects.select_related("sesion"), pk=pk)
+    sesion = informe.sesion
+    if acta_esta_aprobada(sesion):
+        messages.error(request, "El acta ya está aprobada. No se pueden editar informes.")
+        return redirect("actas_app:sesion_informes", sesion_id=sesion.pk)
+
+    form = InformeSesionForm(request.POST or None, instance=informe, sesion=sesion)
+    if request.method == "POST":
+        if form.is_valid():
+            form.save()
+            registrar_bitacora(request.user, str(sesion), "edición de informe", informe.area)
+            messages.success(request, "Informe actualizado correctamente.")
+            return redirect("actas_app:sesion_informes", sesion_id=sesion.pk)
+        messages.error(request, "No se pudo actualizar el informe. Revisa los campos marcados.")
+    return render(request, "actas_app/informe_form.html", {"title": "Editar informe", "form": form, "sesion": sesion, "informe": informe})
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def informe_delete(request, pk):
+    informe = get_object_or_404(InformeSesion.objects.select_related("sesion"), pk=pk)
+    sesion = informe.sesion
+    if request.method != "POST":
+        messages.error(request, "La eliminación de informes debe realizarse desde la vista de informes de la sesión.")
+        return redirect("actas_app:sesion_informes", sesion_id=sesion.pk)
+    if acta_esta_aprobada(sesion):
+        messages.error(request, "El acta ya está aprobada. No se pueden eliminar informes.")
+        return redirect("actas_app:sesion_informes", sesion_id=sesion.pk)
+    area = informe.area
+    informe.delete()
+    registrar_bitacora(request.user, str(sesion), "eliminación de informe", area)
+    messages.success(request, "Informe eliminado correctamente.")
+    return redirect("actas_app:sesion_informes", sesion_id=sesion.pk)
 
 
 @login_required

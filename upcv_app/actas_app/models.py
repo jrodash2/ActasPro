@@ -230,10 +230,23 @@ class InformeSesion(TimeStampedModel):
         verbose_name_plural = "Informes de sesión"
 
     def clean(self):
+        for campo in ["saldo_inicial", "ingresos", "egresos", "fondo_especial"]:
+            valor = getattr(self, campo) or Decimal("0.00")
+            if valor < 0:
+                raise ValidationError({campo: "Este valor no puede ser negativo."})
         if self.tipo_informe == self.TipoInforme.FINANCIERO:
-            calculado = (self.saldo_inicial + self.ingresos) - self.egresos
-            if self.saldo_final != calculado:
-                raise ValidationError("Saldo final debe coincidir con saldo inicial + ingresos - egresos.")
+            self.saldo_final = (self.saldo_inicial or Decimal("0.00")) + (self.ingresos or Decimal("0.00")) - (self.egresos or Decimal("0.00"))
+
+    def save(self, *args, **kwargs):
+        if self.tipo_informe == self.TipoInforme.FINANCIERO:
+            self.saldo_final = (self.saldo_inicial or Decimal("0.00")) + (self.ingresos or Decimal("0.00")) - (self.egresos or Decimal("0.00"))
+        else:
+            self.saldo_inicial = Decimal("0.00")
+            self.ingresos = Decimal("0.00")
+            self.egresos = Decimal("0.00")
+            self.saldo_final = Decimal("0.00")
+            self.fondo_especial = Decimal("0.00")
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.sesion} - {self.area}"

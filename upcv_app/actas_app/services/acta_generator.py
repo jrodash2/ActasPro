@@ -7,6 +7,23 @@ def _lineas(lista, prefijo="- "):
     return "\n".join(f"{prefijo}{item}" for item in lista)
 
 
+def _quetzales(valor):
+    return f"Q {valor or 0:,.2f}"
+
+
+def _formatear_informe(informe):
+    if informe.tipo_informe == "financiero":
+        resumen_financiero = (
+            f"{informe.area}. {informe.expositor} informa que el saldo inicial fue de {_quetzales(informe.saldo_inicial)}, "
+            f"los ingresos fueron de {_quetzales(informe.ingresos)}, los egresos fueron de {_quetzales(informe.egresos)}, "
+            f"dejando un saldo final de {_quetzales(informe.saldo_final)}."
+        )
+        if informe.resumen:
+            resumen_financiero += f" {informe.resumen}"
+        return resumen_financiero
+    return f"{informe.area}. {informe.expositor}: {informe.resumen}"
+
+
 def generar_borrador_acta(sesion):
     asistencias = sesion.asistencias.select_related("miembro").order_by("miembro__apellidos", "miembro__nombres")
     asistentes = [
@@ -32,7 +49,7 @@ def generar_borrador_acta(sesion):
             f"Ausentes: {', '.join(ausentes) if ausentes else 'sin ausentes registrados'}.\n"
             f"Excusados: {', '.join(excusados) if excusados else 'sin excusados registrados'}."
         )
-    informes = [f"{i.area}: {i.resumen}" for i in sesion.informes.all()]
+    informes = [_formatear_informe(i) for i in sesion.informes.all().order_by("area")]
     correspondencias = [f"{c.remitente} - {c.asunto}. Decisión: {c.decision or 'Pendiente.'}" for c in sesion.correspondencias.all()]
     pendientes = [f"{p.titulo} ({p.get_estado_display()})" for p in sesion.pendientes_vinculados.filter(activo=True)]
     nuevos = [f"{n.titulo}: {n.decision or 'Sin decisión registrada.'}" for n in sesion.asuntos_nuevos.all()]

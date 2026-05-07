@@ -43,7 +43,7 @@
     <a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:sesion_agenda' sesion.pk %}">Ver agenda</a>
     <a class="btn btn-sm btn-primary" href="{% url 'actas_app:sesion_agenda' sesion.pk %}">Editar agenda</a>
     <a class="btn btn-sm btn-primary" href="{% url 'actas_app:sesion_asistencia' sesion.pk %}">Asistencia</a>
-    <a class="btn btn-sm btn-primary" href="{% url 'actas_app:informe_create' sesion.pk %}">Informes</a>
+    <a class="btn btn-sm btn-primary" href="{% url 'actas_app:sesion_informes' sesion.pk %}">Informes de la sesión</a>
     <a class="btn btn-sm btn-primary" href="{% url 'actas_app:correspondencia_create' sesion.pk %}">Correspondencia</a>
     <a class="btn btn-sm btn-primary" href="{% url 'actas_app:asunto_nuevo_create' sesion.pk %}">Asuntos nuevos</a>
     <a class="btn btn-sm btn-primary" href="{% url 'actas_app:acuerdo_list' %}">Acuerdos</a>
@@ -75,6 +75,23 @@
       <div class="col-md-4"><strong>Presentes:</strong><ul>{% for asistencia in asistencia_agrupada.presentes %}<li>{{ asistencia.miembro.nombre_completo }}{% if asistencia.observaciones %} — {{ asistencia.observaciones }}{% endif %}</li>{% empty %}<li>Sin presentes registrados.</li>{% endfor %}</ul></div>
       <div class="col-md-4"><strong>Ausentes:</strong><ul>{% for asistencia in asistencia_agrupada.ausentes %}<li>{{ asistencia.miembro.nombre_completo }}{% if asistencia.observaciones %} — {{ asistencia.observaciones }}{% endif %}</li>{% empty %}<li>Sin ausentes registrados.</li>{% endfor %}</ul></div>
       <div class="col-md-4"><strong>Excusados:</strong><ul>{% for asistencia in asistencia_agrupada.excusados %}<li>{{ asistencia.miembro.nombre_completo }}{% if asistencia.observaciones %} — {{ asistencia.observaciones }}{% endif %}</li>{% empty %}<li>Sin excusados registrados.</li>{% endfor %}</ul></div>
+    </div>
+    <h6>Informes de la sesión</h6>
+    <div class="mb-3">
+      <p class="mb-2"><strong>Registrados:</strong> {{ resumen_informes.registrados }} | <strong>Pendientes esperados:</strong> {{ resumen_informes.pendientes }}</p>
+      <div class="row">
+        {% for item in resumen_informes.esperados %}
+          <div class="col-md-4 mb-1">
+            <span class="badge {% if item.registrado %}badge-light-success{% else %}badge-light-warning{% endif %}">{% if item.registrado %}Registrado{% else %}Pendiente{% endif %}</span>
+            {{ item.area }}{% if item.saldo_final %} - Saldo final {{ item.saldo_final }}{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <div class="mt-2 d-flex flex-wrap gap-2">
+        <a class="btn btn-sm btn-primary" href="{% url 'actas_app:informe_create' sesion.pk %}">Registrar informe</a>
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:sesion_informes' sesion.pk %}">Ver todos los informes</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'actas_app:acta_generar' sesion.pk %}">Generar sección de informes en acta</a>
+      </div>
     </div>
     <h6>Agenda de sesión</h6>
     <p class="text-muted mb-2">Checklist de puntos: I. Apertura; II. Discusión y aprobación de agenda; III. Lectura y aprobación acta anterior; IV. Informes; V. Correspondencia; VI. Asuntos pendientes; VII. Asuntos nuevos; VIII. Cierre de sesión.</p>
