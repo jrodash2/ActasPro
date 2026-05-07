@@ -10,10 +10,25 @@ def get_acta_export_content(acta):
     return contenido_borrador
 
 
+PYTHON_DOCX_MISSING_MESSAGE = (
+    "La exportación a Word requiere la dependencia python-docx. "
+    "Instálala con: pip install python-docx"
+)
+
+
+def _load_python_docx():
+    try:
+        from docx import Document
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.shared import Pt
+    except ImportError as exc:
+        raise RuntimeError(PYTHON_DOCX_MISSING_MESSAGE) from exc
+
+    return Document, WD_ALIGN_PARAGRAPH, Pt
+
+
 def build_acta_docx_bytes(acta, institucion_nombre="Sistema de Actas Consistoriales"):
-    from docx import Document
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.shared import Pt
+    Document, WD_ALIGN_PARAGRAPH, Pt = _load_python_docx()
 
     contenido = get_acta_export_content(acta)
     if not contenido:

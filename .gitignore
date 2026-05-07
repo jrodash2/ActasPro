@@ -1,0 +1,11 @@
+*.docx
+*.doc
+~$*.docx
+exports/
+tmp/
+media/actas_exportadas/
+*.pyc
+*.pyo
+__pycache__/
+*.sqlite3
+*.db
