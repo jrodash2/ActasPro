@@ -1,0 +1,52 @@
+{% extends 'almacen/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid">
+  {% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}{% endif %}
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+      <h4>{{ title }}</h4>
+      <p class="mb-0 text-muted">Los textos base sirven para crear frases reutilizables que el sistema puede usar al generar el acta automáticamente. Puede configurar textos para apertura, quórum, informes, asuntos pendientes y cierre.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#variablesActa">Ver variables disponibles</button>
+      <a class="btn btn-primary" href="{% url 'actas_app:texto_base_create' %}">Nueva plantilla</a>
+    </div>
+  </div>
+
+  <div class="collapse mb-3" id="variablesActa">
+    <div class="card"><div class="card-body">
+      <h6>Variables disponibles</h6>
+      <p class="text-muted mb-2">Use estas variables dentro de llaves. Si una variable no tiene dato en la sesión, se reemplaza por vacío para no romper el acta.</p>
+      <div class="d-flex flex-wrap gap-2">
+        {% for variable in variables %}<code>{% templatetag openbrace %}{{ variable }}{% templatetag closebrace %}</code>{% endfor %}
+      </div>
+    </div></div>
+  </div>
+
+  <div class="alert alert-info">
+    <strong>Separación de funciones:</strong> Agenda = checklist de la sesión; Acta final = texto narrativo formal; Textos base = plantillas reutilizables para redactar el acta.
+  </div>
+
+  <div class="card"><div class="card-body">
+    <div class="table-responsive"><table class="table table-striped align-middle">
+      <thead><tr><th>Nombre</th><th>Sección</th><th>Activo</th><th>Última actualización</th><th>Acciones</th></tr></thead>
+      <tbody>
+        {% for item in items %}
+          <tr>
+            <td>{{ item.nombre }}</td>
+            <td>{{ item.get_seccion_display }}</td>
+            <td>{% if item.activo %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-secondary">Inactivo</span>{% endif %}</td>
+            <td>{{ item.actualizado_en }}</td>
+            <td class="d-flex flex-wrap gap-1">
+              <a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:texto_base_edit' item.pk %}">Ver / Editar / Probar plantilla</a>
+              <a class="btn btn-sm btn-outline-secondary" href="{% url 'actas_app:texto_base_toggle' item.pk %}">{% if item.activo %}Inactivar{% else %}Activar{% endif %}</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">No hay plantillas de redacción del acta.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  </div></div>
+</div></div>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends 'almacen/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid">
+  {% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}{% endif %}
+
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+      <h4 class="mb-1">{{ title }} — Sesión {{ sesion.numero }}/{{ sesion.anio }}</h4>
+      <p class="text-muted mb-0">Los informes quedan vinculados automáticamente a esta sesión y serán tomados por el acta.</p>
+    </div>
+    <a class="btn btn-light" href="{% url 'actas_app:sesion_informes' sesion.pk %}">Volver a informes</a>
+  </div>
+
+  <div class="card"><div class="card-body">
+    {% if form.errors %}<div class="alert alert-danger">No se pudo guardar el informe. Revisa los campos marcados. {{ form.errors }}</div>{% endif %}
+    <form method="post" id="informe-form">
+      {% csrf_token %}
+      <div class="row">
+        <div class="col-md-6 mb-3"><label class="form-label" for="{{ form.area.id_for_label }}">Categoría del informe</label>{{ form.area }}</div>
+        <div class="col-md-6 mb-3" id="area-otro-group"><label class="form-label" for="{{ form.area_otro.id_for_label }}">Título personalizado</label>{{ form.area_otro }}</div>
+        <div class="col-md-6 mb-3"><label class="form-label" for="{{ form.expositor.id_for_label }}">Responsable</label>{{ form.expositor }}</div>
+        <div class="col-md-6 mb-3"><label class="form-label" for="{{ form.tipo_informe.id_for_label }}">Tipo de informe</label>{{ form.tipo_informe }}</div>
+      </div>
+
+      <div class="alert alert-info" id="tipo-ayuda">Si la categoría es financiera, el saldo final se calcula automáticamente en pantalla y nuevamente en backend al guardar.</div>
+
+      <div class="row" id="campos-financieros">
+        <div class="col-md-3 mb-3"><label class="form-label" for="{{ form.saldo_inicial.id_for_label }}">Saldo inicial</label><div class="input-group"><span class="input-group-text">Q</span>{{ form.saldo_inicial }}</div></div>
+        <div class="col-md-3 mb-3"><label class="form-label" for="{{ form.ingresos.id_for_label }}">Ingresos</label><div class="input-group"><span class="input-group-text">Q</span>{{ form.ingresos }}</div></div>
+        <div class="col-md-3 mb-3"><label class="form-label" for="{{ form.egresos.id_for_label }}">Egresos</label><div class="input-group"><span class="input-group-text">Q</span>{{ form.egresos }}</div></div>
+        <div class="col-md-3 mb-3"><label class="form-label" for="{{ form.saldo_final.id_for_label }}">Saldo final automático</label><div class="input-group"><span class="input-group-text">Q</span>{{ form.saldo_final }}</div></div>
+      </div>
+
+      <div class="mb-3"><label class="form-label" for="{{ form.resumen.id_for_label }}">Contenido / detalle narrativo</label>{{ form.resumen }}</div>
+      <div class="mb-3"><label class="form-label" for="{{ form.observaciones.id_for_label }}">Observaciones</label>{{ form.observaciones }}</div>
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" type="submit">Guardar informe</button>
+        <a class="btn btn-light" href="{% url 'actas_app:sesion_informes' sesion.pk %}">Cancelar</a>
+      </div>
+    </form>
+  </div></div>
+</div></div>
+
+<script>
+(function () {
+  const financieras = new Set(['Tesorería', 'Purificadora', 'Diáconos', 'Femenil', 'Jóvenes', 'Educación Cristiana', 'Fondo pastoral']);
+  const area = document.getElementById('id_area');
+  const areaOtroGroup = document.getElementById('area-otro-group');
+  const tipo = document.getElementById('id_tipo_informe');
+  const financieros = document.getElementById('campos-financieros');
+  const saldoInicial = document.getElementById('id_saldo_inicial');
+  const ingresos = document.getElementById('id_ingresos');
+  const egresos = document.getElementById('id_egresos');
+  const saldoFinal = document.getElementById('id_saldo_final');
+
+  function moneyValue(input) {
+    const value = Number.parseFloat(input?.value || '0');
+    return Number.isFinite(value) ? value : 0;
+  }
+  function updateSaldo() {
+    if (!saldoFinal) return;
+    saldoFinal.value = (moneyValue(saldoInicial) + moneyValue(ingresos) - moneyValue(egresos)).toFixed(2);
+  }
+  function updateVisibility() {
+    const isOtro = area?.value === 'Otros';
+    const isFinanciera = financieras.has(area?.value || '');
+    if (areaOtroGroup) areaOtroGroup.style.display = isOtro ? '' : 'none';
+    if (financieros) financieros.style.display = isFinanciera ? '' : 'none';
+    if (tipo) tipo.value = isFinanciera ? 'financiero' : 'narrativo';
+    updateSaldo();
+  }
+  [saldoInicial, ingresos, egresos].forEach((input) => input?.addEventListener('input', updateSaldo));
+  area?.addEventListener('change', updateVisibility);
+  updateVisibility();
+})();
+</script>
+{% endblock %}

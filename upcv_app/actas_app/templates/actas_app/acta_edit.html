@@ -1,10 +1,83 @@
 {% extends 'almacen/base.html' %}
 {% block content %}
-<div class="page-body"><div class="container-fluid"><h4>Acta de sesión {{ sesion.numero }}/{{ sesion.anio }}</h4>
-<div class="card"><div class="card-body"><p><strong>No. acta:</strong> {{ acta.numero_acta }}/{{ acta.anio }} | <strong>Versión:</strong> {{ acta.version }}</p>
-{% if form.errors %}
-<div class="alert alert-danger">No se pudo guardar el acta. {{ form.errors }}</div>
-{% endif %}
-<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Guardar acta</button> <a class="btn btn-success" href="{% url 'actas_app:acta_word_download' sesion.pk %}">Descargar Word</a> <a class="btn btn-light" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Volver</a></form></div></div>
+<div class="page-body"><div class="container-fluid">
+  {% if messages %}
+    {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}
+  {% endif %}
+  <h4>Acta de sesión {{ sesion.numero }}/{{ sesion.anio }}</h4>
+
+  <div class="card mb-3"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <p class="mb-1"><strong>No. acta:</strong> {{ acta.numero_acta }}/{{ acta.anio }} | <strong>Versión:</strong> {{ acta.version }}</p>
+        <p class="mb-0 text-muted">Estado actual: <span class="badge {{ estado_badge_class }}">{{ acta.get_estado_display }}</span>. Acción recomendada: {{ accion_sugerida }}.</p>
+      </div>
+      <a class="btn btn-light" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Volver al detalle</a>
+    </div>
+    <hr>
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+      {% for paso in flujo_estados %}
+        <span class="badge {% if paso.activo %}{{ estado_badge_class }}{% elif paso.completado %}badge-light-success{% else %}badge-light-secondary{% endif %}">{{ paso.etiqueta }}</span>
+        {% if not forloop.last %}<span class="text-muted">→</span>{% endif %}
+      {% endfor %}
+    </div>
+    <h6>Pendiente para aprobar</h6>
+    {% if pendientes_aprobacion %}
+      <ul class="mb-0">{% for pendiente in pendientes_aprobacion %}<li>{{ pendiente }}</li>{% endfor %}</ul>
+    {% else %}
+      <span class="badge badge-light-success">Lista para aprobar</span>
+    {% endif %}
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    {% if acta.estado == 'aprobada' %}
+      <div class="alert alert-warning">Esta acta ya fue aprobada. La edición directa está bloqueada según la lógica actual del sistema.</div>
+    {% endif %}
+    {% if form.errors %}<div class="alert alert-danger">No se pudo guardar el acta. {{ form.errors }}</div>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="alert alert-info">
+        <strong>Agenda vs. acta final:</strong> la agenda es el checklist de la sesión; el acta final es el texto narrativo formal en apartados PRIMERO, SEGUNDO, TERCERO, etc.
+      </div>
+      <div class="alert alert-info">
+        Este borrador se genera automáticamente con los datos registrados en la sesión. Si agrega seguimientos, informes o asuntos nuevos, debe presionar <strong>Regenerar borrador del acta</strong> para actualizar el texto. Los seguimientos registrados en esta sesión se incluirán automáticamente en la sección SEXTO. ASUNTOS PENDIENTES.
+      </div>
+      {% if acta.contenido_final %}
+        <div class="alert alert-warning">
+          El contenido final fue editado manualmente. Regenerar el borrador no reemplaza el contenido final hasta que usted lo confirme.
+        </div>
+      {% endif %}
+      {{ form.as_p }}
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" type="submit" {% if acta.estado == 'aprobada' %}disabled{% endif %}>Guardar acta</button>
+        <a class="btn btn-secondary {% if acta.estado == 'aprobada' %}disabled{% endif %}" href="{% url 'actas_app:acta_generar' sesion.pk %}">Regenerar borrador del acta</a>
+        {% if acta.estado == 'borrador' %}
+          <button class="btn btn-info" type="submit" formaction="{% url 'actas_app:acta_cambiar_estado' sesion.pk %}" name="accion" value="enviar_revision">Enviar a revisión</button>
+        {% elif acta.estado == 'en_revision' %}
+          <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#aprobarActaModal">Aprobar acta</button>
+        {% elif acta.estado == 'aprobada' %}
+          <a class="btn btn-success" href="{% url 'actas_app:acta_word_download' sesion.pk %}">Descargar Word</a>
+        {% endif %}
+        <a class="btn btn-light" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Volver</a>
+      </div>
+    </form>
+  </div></div>
 </div></div>
+
+{% if acta.estado == 'en_revision' %}
+<div class="modal fade" id="aprobarActaModal" tabindex="-1" aria-labelledby="aprobarActaModalLabel" aria-hidden="true">
+  <div class="modal-dialog"><div class="modal-content">
+    <form method="post" action="{% url 'actas_app:acta_cambiar_estado' sesion.pk %}">
+      {% csrf_token %}<input type="hidden" name="accion" value="aprobar">
+      <div class="modal-header"><h5 class="modal-title" id="aprobarActaModalLabel">Aprobar acta</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body">
+        <p>¿Está seguro de aprobar esta acta? Después de aprobarla, se recomienda no modificar su contenido.</p>
+        {% if pendientes_aprobacion %}<div class="alert alert-warning"><strong>Antes de aprobar falta:</strong> {{ pendientes_aprobacion|join:', ' }}.</div>{% endif %}
+        {% if not puede_aprobar_acta %}<div class="alert alert-danger">No tienes permiso para aprobar actas.</div>{% endif %}
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-success" type="submit">Sí, aprobar acta</button></div>
+    </form>
+  </div></div>
+</div>
+{% endif %}
 {% endblock %}

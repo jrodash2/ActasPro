@@ -1,8 +1,116 @@
 {% extends 'almacen/base.html' %}
 {% block content %}
-<div class="page-body"><div class="container-fluid"><div class="card"><div class="card-header"><h5>Asistencia sesión {{ sesion.numero }}/{{ sesion.anio }}</h5></div><div class="card-body">
-<form method="post">{% csrf_token %}{{ formset.management_form }}
-<table class="table"><thead><tr><th>Miembro</th><th>Asistencia</th><th>Observaciones</th></tr></thead><tbody>{% for form in formset %}<tr><td>{{ form.miembro }}</td><td>{{ form.asistencia }}</td><td>{{ form.observaciones }}</td></tr>{% endfor %}</tbody></table>
-<button class="btn btn-primary" type="submit">Guardar asistencia</button></form>
-</div></div></div></div>
+<div class="page-body"><div class="container-fluid">
+  {% if messages %}
+    {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}
+  {% endif %}
+
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+      <h4 class="mb-1">Toma de asistencia — Sesión {{ sesion.numero }}/{{ sesion.anio }}</h4>
+      <p class="text-muted mb-0">{{ sesion.fecha }} · {{ sesion.tipo_sesion }} · Estado del acta: <span class="badge {{ estado_badge_class }}">{% if acta %}{{ acta.get_estado_display }}{% else %}Borrador{% endif %}</span></p>
+    </div>
+    <a class="btn btn-light" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Volver a la sesión</a>
+  </div>
+
+  {% if asistencia_bloqueada %}
+    <div class="alert alert-warning">El acta ya está aprobada. La asistencia está bloqueada para proteger el contenido aprobado.</div>
+  {% endif %}
+
+  <div class="row mb-3">
+    <div class="col-md-2"><div class="card"><div class="card-body text-center"><h6>Total miembros</h6><h3 id="total-miembros">{{ resumen_asistencia.total_miembros }}</h3></div></div></div>
+    <div class="col-md-2"><div class="card"><div class="card-body text-center"><h6>Presentes</h6><h3 id="total-presentes">{{ resumen_asistencia.presentes }}</h3></div></div></div>
+    <div class="col-md-2"><div class="card"><div class="card-body text-center"><h6>Ausentes</h6><h3 id="total-ausentes">{{ resumen_asistencia.ausentes }}</h3></div></div></div>
+    <div class="col-md-2"><div class="card"><div class="card-body text-center"><h6>Excusados</h6><h3 id="total-excusados">{{ resumen_asistencia.excusados }}</h3></div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-body text-center"><h6>Estado de quórum</h6><span id="badge-quorum" class="badge {% if resumen_asistencia.cumple_quorum %}badge-light-success{% else %}badge-light-danger{% endif %}">{% if resumen_asistencia.cumple_quorum %}Quórum alcanzado{% else %}No hay quórum{% endif %}</span><p class="mb-0 mt-2 text-muted">Requeridos: <span id="quorum-requerido">{{ resumen_asistencia.quorum_requerido }}</span></p></div></div></div>
+  </div>
+
+  <div class="card"><div class="card-body">
+    {% if not filas_asistencia %}
+      <div class="alert alert-warning mb-0">No hay miembros activos configurados para tomar asistencia. Configure primero los miembros del consistorio.</div>
+    {% else %}
+      <form method="post" id="asistencia-form">
+        {% csrf_token %}
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <button class="btn btn-outline-success" type="button" id="marcar-presentes" {% if asistencia_bloqueada %}disabled{% endif %}>Marcar todos presentes</button>
+          <button class="btn btn-outline-secondary" type="button" id="limpiar-asistencia" {% if asistencia_bloqueada %}disabled{% endif %}>Limpiar asistencia</button>
+          <button class="btn btn-primary" type="submit" {% if asistencia_bloqueada %}disabled{% endif %}>Guardar asistencia</button>
+          <a class="btn btn-light" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Volver a la sesión</a>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-striped align-middle">
+            <thead>
+              <tr><th>Nombre</th><th>Cargo</th><th class="text-center">Presente</th><th class="text-center">Ausente</th><th class="text-center">Excusado</th><th>Observación</th></tr>
+            </thead>
+            <tbody>
+              {% for fila in filas_asistencia %}
+                <tr>
+                  <td>{{ fila.miembro.nombre_completo }}</td>
+                  <td>{{ fila.miembro.cargo }}</td>
+                  <td class="text-center"><input class="form-check-input asistencia-radio" type="radio" name="asistencia_{{ fila.miembro.pk }}" value="presente" {% if fila.asistencia == 'presente' %}checked{% endif %} {% if asistencia_bloqueada %}disabled{% endif %} required></td>
+                  <td class="text-center"><input class="form-check-input asistencia-radio" type="radio" name="asistencia_{{ fila.miembro.pk }}" value="ausente" {% if fila.asistencia == 'ausente' %}checked{% endif %} {% if asistencia_bloqueada %}disabled{% endif %} required></td>
+                  <td class="text-center"><input class="form-check-input asistencia-radio" type="radio" name="asistencia_{{ fila.miembro.pk }}" value="excusado" {% if fila.asistencia == 'excusado' %}checked{% endif %} {% if asistencia_bloqueada %}disabled{% endif %} required></td>
+                  <td><input class="form-control" type="text" name="observaciones_{{ fila.miembro.pk }}" value="{{ fila.observaciones }}" placeholder="Llegó tarde, presentó excusa..." maxlength="255" {% if asistencia_bloqueada %}disabled{% endif %}></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="alert alert-warning d-none" id="asistencia-pendiente">Hay miembros sin marcar. Complete la asistencia antes de continuar.</div>
+        <div class="d-flex flex-wrap gap-2">
+          <button class="btn btn-primary" type="submit" {% if asistencia_bloqueada %}disabled{% endif %}>Guardar asistencia</button>
+          <a class="btn btn-light" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Volver a la sesión</a>
+        </div>
+      </form>
+    {% endif %}
+  </div></div>
+</div></div>
+
+<script>
+(function () {
+  const form = document.getElementById('asistencia-form');
+  if (!form) return;
+  const requerido = Number(document.getElementById('quorum-requerido').textContent || 0);
+  const radios = Array.from(form.querySelectorAll('.asistencia-radio'));
+  const names = Array.from(new Set(radios.map((radio) => radio.name)));
+
+  function updateSummary() {
+    const counts = {presente: 0, ausente: 0, excusado: 0};
+    radios.filter((radio) => radio.checked).forEach((radio) => { counts[radio.value] += 1; });
+    document.getElementById('total-presentes').textContent = counts.presente;
+    document.getElementById('total-ausentes').textContent = counts.ausente;
+    document.getElementById('total-excusados').textContent = counts.excusado;
+    const badge = document.getElementById('badge-quorum');
+    const cumple = counts.presente >= requerido;
+    badge.textContent = cumple ? 'Quórum alcanzado' : 'No hay quórum';
+    badge.className = 'badge ' + (cumple ? 'badge-light-success' : 'badge-light-danger');
+  }
+
+  document.getElementById('marcar-presentes')?.addEventListener('click', function () {
+    names.forEach((name) => {
+      const radio = form.querySelector(`input[name="${name}"][value="presente"]`);
+      if (radio) radio.checked = true;
+    });
+    document.getElementById('asistencia-pendiente').classList.add('d-none');
+    updateSummary();
+  });
+
+  document.getElementById('limpiar-asistencia')?.addEventListener('click', function () {
+    radios.forEach((radio) => { radio.checked = false; });
+    updateSummary();
+  });
+
+  radios.forEach((radio) => radio.addEventListener('change', updateSummary));
+  form.addEventListener('submit', function (event) {
+    const incompletos = names.some((name) => !form.querySelector(`input[name="${name}"]:checked`));
+    if (incompletos) {
+      event.preventDefault();
+      document.getElementById('asistencia-pendiente').classList.remove('d-none');
+    }
+  });
+  updateSummary();
+})();
+</script>
 {% endblock %}

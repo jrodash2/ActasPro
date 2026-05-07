@@ -1,4 +1,7 @@
+from decimal import Decimal
+
 from django import forms
+from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
 
 from .models import (
@@ -93,21 +96,132 @@ AsistenciaSesionFormset = inlineformset_factory(
 
 
 class InformeSesionForm(forms.ModelForm):
+    AREAS_INFORME_BASE = [
+        "Pastor",
+        "Tesorería",
+        "Purificadora",
+        "Anciano de turno",
+        "Diáconos",
+        "Femenil",
+        "Jóvenes",
+        "Educación Cristiana",
+        "Visita Jícaro",
+        "Consejera Femenil",
+        "Consejo Diáconos",
+        "Secretario",
+        "Fondo pastoral",
+        "Otros",
+    ]
+    AREAS_FINANCIERAS = {
+        "Tesorería",
+        "Purificadora",
+        "Diáconos",
+        "Femenil",
+        "Jóvenes",
+        "Educación Cristiana",
+        "Fondo pastoral",
+    }
+
+    area = forms.ChoiceField(label="Categoría del informe", widget=forms.Select(attrs={"class": "form-control"}))
+    area_otro = forms.CharField(
+        label="Título personalizado",
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Escribe el nombre del informe"}),
+    )
+
     class Meta:
         model = InformeSesion
-        exclude = ["sesion", "creado_en", "actualizado_en"]
+        fields = [
+            "area",
+            "area_otro",
+            "tipo_informe",
+            "expositor",
+            "resumen",
+            "saldo_inicial",
+            "ingresos",
+            "egresos",
+            "saldo_final",
+            "fondo_especial",
+            "observaciones",
+        ]
         widgets = {
-            "area": forms.TextInput(attrs={"class": "form-control"}),
             "tipo_informe": forms.Select(attrs={"class": "form-control"}),
-            "expositor": forms.TextInput(attrs={"class": "form-control"}),
-            "resumen": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-            "saldo_inicial": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
-            "ingresos": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
-            "egresos": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
-            "saldo_final": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
-            "fondo_especial": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "expositor": forms.TextInput(attrs={"class": "form-control", "placeholder": "Responsable o expositor"}),
+            "resumen": forms.Textarea(attrs={"class": "form-control", "rows": 4, "placeholder": "Contenido o detalle narrativo del informe"}),
+            "saldo_inicial": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+            "ingresos": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+            "egresos": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+            "saldo_final": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "readonly": "readonly"}),
+            "fondo_especial": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
             "observaciones": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
+
+    def __init__(self, *args, sesion=None, **kwargs):
+        self.sesion = sesion
+        super().__init__(*args, **kwargs)
+        catalogo = list(AreaInformeCatalogo.objects.filter(activa=True).values_list("nombre", flat=True))
+        areas = list(dict.fromkeys([*self.AREAS_INFORME_BASE, *catalogo]))
+        self.fields["area"].choices = [(area, area) for area in areas]
+        self.fields["tipo_informe"].required = False
+        for field_name in ["saldo_inicial", "ingresos", "egresos", "saldo_final", "fondo_especial"]:
+            self.fields[field_name].required = False
+        if self.instance and self.instance.pk:
+            area_actual = self.instance.area
+            if area_actual not in areas:
+                self.initial["area"] = "Otros"
+                self.initial["area_otro"] = area_actual
+            else:
+                self.initial.setdefault("area", area_actual)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        area = cleaned_data.get("area")
+        area_otro = (cleaned_data.get("area_otro") or "").strip()
+        area_final = area_otro if area == "Otros" else area
+        if not area_final:
+            raise ValidationError("Selecciona o escribe la categoría del informe.")
+
+        for campo in ["saldo_inicial", "ingresos", "egresos", "fondo_especial"]:
+            if cleaned_data.get(campo) is None:
+                cleaned_data[campo] = Decimal("0.00")
+            if cleaned_data[campo] < 0:
+                self.add_error(campo, "Este valor no puede ser negativo.")
+
+        es_financiero = area_final in self.AREAS_FINANCIERAS
+        cleaned_data["area"] = area_final
+        cleaned_data["tipo_informe"] = InformeSesion.TipoInforme.FINANCIERO if es_financiero else InformeSesion.TipoInforme.NARRATIVO
+        if es_financiero:
+            cleaned_data["saldo_final"] = cleaned_data["saldo_inicial"] + cleaned_data["ingresos"] - cleaned_data["egresos"]
+        else:
+            cleaned_data["saldo_inicial"] = Decimal("0.00")
+            cleaned_data["ingresos"] = Decimal("0.00")
+            cleaned_data["egresos"] = Decimal("0.00")
+            cleaned_data["saldo_final"] = Decimal("0.00")
+            cleaned_data["fondo_especial"] = Decimal("0.00")
+
+        if self.sesion and area != "Otros":
+            duplicado = InformeSesion.objects.filter(sesion=self.sesion, area__iexact=area_final)
+            if self.instance and self.instance.pk:
+                duplicado = duplicado.exclude(pk=self.instance.pk)
+            if duplicado.exists():
+                self.add_error(
+                    "area",
+                    f"Ya existe un informe de {area_final} registrado para esta sesión. Puede editar el informe existente.",
+                )
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.area = self.cleaned_data["area"]
+        instance.tipo_informe = self.cleaned_data["tipo_informe"]
+        instance.saldo_inicial = self.cleaned_data["saldo_inicial"]
+        instance.ingresos = self.cleaned_data["ingresos"]
+        instance.egresos = self.cleaned_data["egresos"]
+        instance.saldo_final = self.cleaned_data["saldo_final"]
+        instance.fondo_especial = self.cleaned_data["fondo_especial"]
+        if commit:
+            instance.save()
+        return instance
 
 
 class CorrespondenciaSesionForm(forms.ModelForm):
@@ -136,14 +250,29 @@ class AsuntoPendienteForm(forms.ModelForm):
 
 
 class SeguimientoAsuntoPendienteForm(forms.ModelForm):
+    sesion = forms.ModelChoiceField(
+        queryset=SesionConsistorial.objects.all(),
+        required=True,
+        label="Sesión donde se trató",
+        widget=forms.Select(attrs={"class": "form-control"}),
+    )
+    detalle = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 4, "placeholder": "Describe el seguimiento tratado en esta sesión"}),
+    )
+
     class Meta:
         model = SeguimientoAsuntoPendiente
         fields = ["sesion", "detalle", "estado_nuevo"]
         widgets = {
-            "sesion": forms.Select(attrs={"class": "form-control"}),
-            "detalle": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "estado_nuevo": forms.Select(attrs={"class": "form-control"}),
         }
+
+    def clean_detalle(self):
+        detalle = (self.cleaned_data.get("detalle") or "").strip()
+        if not detalle:
+            raise ValidationError("El seguimiento no puede estar vacío.")
+        return detalle
 
 
 class AsuntoNuevoSesionForm(forms.ModelForm):
@@ -244,8 +373,18 @@ class AreaInformeCatalogoForm(forms.ModelForm):
 class TextoBaseActaForm(forms.ModelForm):
     class Meta:
         model = TextoBaseActa
-        fields = ["nombre", "contenido", "activo"]
+        fields = ["nombre", "seccion", "contenido", "activo"]
+        labels = {
+            "nombre": "Nombre del texto base",
+            "seccion": "Sección del acta",
+            "contenido": "Texto o plantilla",
+            "activo": "Activo",
+        }
+        help_texts = {
+            "contenido": "Puede usar variables como {fecha}, {hora_inicio}, {presentes}, {moderador} y {secretario}.",
+        }
         widgets = {
             "nombre": forms.TextInput(attrs={"class": "form-control"}),
-            "contenido": forms.Textarea(attrs={"class": "form-control", "rows": 5}),
+            "seccion": forms.Select(attrs={"class": "form-control"}),
+            "contenido": forms.Textarea(attrs={"class": "form-control", "rows": 8}),
         }

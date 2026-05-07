@@ -1,23 +1,138 @@
 {% extends 'almacen/base.html' %}
 {% block content %}
 <div class="page-body"><div class="container-fluid">
-<div class="d-flex justify-content-between"><h4>Sesión {{ sesion.numero }}/{{ sesion.anio }}</h4><span class="badge badge-light-info">{{ sesion.get_estado_display }}</span></div>
-<div class="mb-3">
-<a class="btn btn-sm btn-primary" href="{% url 'actas_app:sesion_agenda' sesion.pk %}">Agenda</a>
-<a class="btn btn-sm btn-primary" href="{% url 'actas_app:sesion_asistencia' sesion.pk %}">Asistencia</a>
-<a class="btn btn-sm btn-primary" href="{% url 'actas_app:informe_create' sesion.pk %}">Informes</a>
-<a class="btn btn-sm btn-primary" href="{% url 'actas_app:correspondencia_create' sesion.pk %}">Correspondencia</a>
-<a class="btn btn-sm btn-primary" href="{% url 'actas_app:asunto_nuevo_create' sesion.pk %}">Asuntos nuevos</a>
-<a class="btn btn-sm btn-primary" href="{% url 'actas_app:acuerdo_list' %}">Acuerdos</a>
-<a class="btn btn-sm btn-secondary" href="{% url 'actas_app:acta_generar' sesion.pk %}">Generar acta</a>
-<a class="btn btn-sm btn-warning" href="{% url 'actas_app:acta_edit' sesion.pk %}">Editar acta</a>
-<a class="btn btn-sm btn-success" href="{% url 'actas_app:acta_word_download' sesion.pk %}">Descargar Word</a>
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Sesión {{ sesion.numero }}/{{ sesion.anio }}</h4>
+    <span class="badge {{ estado_badge_class }}">{% if acta %}{{ acta.get_estado_display }}{% else %}Borrador{% endif %}</span>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row align-items-center">
+        <div class="col-lg-8">
+          <h6 class="mb-1">Estado del acta: {% if acta %}{{ acta.get_estado_display }}{% else %}Borrador{% endif %}</h6>
+          <p class="mb-2 text-muted">Acción recomendada: {{ accion_sugerida }}.</p>
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            {% for paso in flujo_estados %}
+              <span class="badge {% if paso.activo %}{{ estado_badge_class }}{% elif paso.completado %}badge-light-success{% else %}badge-light-secondary{% endif %}">{{ paso.etiqueta }}</span>
+              {% if not forloop.last %}<span class="text-muted">→</span>{% endif %}
+            {% endfor %}
+          </div>
+        </div>
+        <div class="col-lg-4 mt-3 mt-lg-0">
+          <h6 class="mb-2">Pendiente para aprobar</h6>
+          {% if pendientes_aprobacion %}
+            <ul class="mb-0 ps-3">
+              {% for pendiente in pendientes_aprobacion %}<li>{{ pendiente }}</li>{% endfor %}
+            </ul>
+          {% else %}
+            <span class="badge badge-light-success">Lista para aprobar</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-3 d-flex flex-wrap gap-2">
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:sesion_agenda' sesion.pk %}">Ver agenda</a>
+    <a class="btn btn-sm btn-primary" href="{% url 'actas_app:sesion_agenda' sesion.pk %}">Editar agenda</a>
+    <a class="btn btn-sm btn-primary" href="{% url 'actas_app:sesion_asistencia' sesion.pk %}">Asistencia</a>
+    <a class="btn btn-sm btn-primary" href="{% url 'actas_app:sesion_informes' sesion.pk %}">Informes de la sesión</a>
+    <a class="btn btn-sm btn-primary" href="{% url 'actas_app:correspondencia_create' sesion.pk %}">Correspondencia</a>
+    <a class="btn btn-sm btn-primary" href="{% url 'actas_app:asunto_nuevo_create' sesion.pk %}">Asuntos nuevos</a>
+    <a class="btn btn-sm btn-primary" href="{% url 'actas_app:acuerdo_list' %}">Acuerdos</a>
+    <a class="btn btn-sm btn-secondary" href="{% url 'actas_app:acta_generar' sesion.pk %}">Generar acta</a>
+    <a class="btn btn-sm btn-warning" href="{% url 'actas_app:acta_edit' sesion.pk %}">{% if acta and acta.estado == 'aprobada' %}Revisar acta{% else %}Editar acta{% endif %}</a>
+
+    {% if not acta or acta.estado == 'borrador' %}
+      <form method="post" action="{% url 'actas_app:acta_cambiar_estado' sesion.pk %}" class="d-inline">
+        {% csrf_token %}<input type="hidden" name="accion" value="enviar_revision">
+        <button class="btn btn-sm btn-info" type="submit">Enviar a revisión</button>
+      </form>
+    {% elif acta.estado == 'en_revision' %}
+      <button class="btn btn-sm btn-success" type="button" data-bs-toggle="modal" data-bs-target="#aprobarActaModal">Aprobar acta</button>
+    {% elif acta.estado == 'aprobada' %}
+      <a class="btn btn-sm btn-success" href="{% url 'actas_app:acta_word_download' sesion.pk %}">Descargar Word</a>
+      <button class="btn btn-sm btn-outline-dark" type="button" disabled>Cerrar acta no disponible</button>
+    {% endif %}
+  </div>
+
+  {% if acta and acta.estado == 'aprobada' %}
+    <div class="alert alert-warning">Esta acta ya fue aprobada. La edición directa está bloqueada para proteger su contenido.</div>
+  {% endif %}
+
+  <div class="card mb-3"><div class="card-body">
+    <p><strong>Fecha:</strong> {{ sesion.fecha }} | <strong>Lugar:</strong> {{ sesion.lugar }} | <strong>Tipo:</strong> {{ sesion.tipo_sesion }}</p>
+    <p><strong>Quórum:</strong> {{ resumen_asistencia.presentes }}/{{ sesion.quorum_requerido }} {% if resumen_asistencia.cumple_quorum %}<span class="badge badge-light-success">Quórum alcanzado</span>{% else %}<span class="badge badge-light-danger">No hay quórum</span>{% endif %}</p>
+    <h6>Asistencia</h6>
+    <div class="row mb-3">
+      <div class="col-md-4"><strong>Presentes:</strong><ul>{% for asistencia in asistencia_agrupada.presentes %}<li>{{ asistencia.miembro.nombre_completo }}{% if asistencia.observaciones %} — {{ asistencia.observaciones }}{% endif %}</li>{% empty %}<li>Sin presentes registrados.</li>{% endfor %}</ul></div>
+      <div class="col-md-4"><strong>Ausentes:</strong><ul>{% for asistencia in asistencia_agrupada.ausentes %}<li>{{ asistencia.miembro.nombre_completo }}{% if asistencia.observaciones %} — {{ asistencia.observaciones }}{% endif %}</li>{% empty %}<li>Sin ausentes registrados.</li>{% endfor %}</ul></div>
+      <div class="col-md-4"><strong>Excusados:</strong><ul>{% for asistencia in asistencia_agrupada.excusados %}<li>{{ asistencia.miembro.nombre_completo }}{% if asistencia.observaciones %} — {{ asistencia.observaciones }}{% endif %}</li>{% empty %}<li>Sin excusados registrados.</li>{% endfor %}</ul></div>
+    </div>
+    <h6>Informes de la sesión</h6>
+    <div class="mb-3">
+      <p class="mb-2"><strong>Registrados:</strong> {{ resumen_informes.registrados }} | <strong>Pendientes esperados:</strong> {{ resumen_informes.pendientes }}</p>
+      <div class="row">
+        {% for item in resumen_informes.esperados %}
+          <div class="col-md-4 mb-1">
+            <span class="badge {% if item.registrado %}badge-light-success{% else %}badge-light-warning{% endif %}">{% if item.registrado %}Registrado{% else %}Pendiente{% endif %}</span>
+            {{ item.area }}{% if item.saldo_final %} - Saldo final {{ item.saldo_final }}{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <div class="mt-2 d-flex flex-wrap gap-2">
+        <a class="btn btn-sm btn-primary" href="{% url 'actas_app:informe_create' sesion.pk %}">Registrar informe</a>
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:sesion_informes' sesion.pk %}">Ver todos los informes</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'actas_app:acta_generar' sesion.pk %}">Generar sección de informes en acta</a>
+      </div>
+    </div>
+    <h6>Agenda de sesión</h6>
+    <p class="text-muted mb-2">Checklist de puntos: I. Apertura; II. Discusión y aprobación de agenda; III. Lectura y aprobación acta anterior; IV. Informes; V. Correspondencia; VI. Asuntos pendientes; VII. Asuntos nuevos; VIII. Cierre de sesión.</p>
+    <ul>{% for punto in sesion.puntos_agenda.all %}<li>{{ punto.numeral }}. {{ punto.titulo }}</li>{% empty %}<li>Sin agenda registrada.</li>{% endfor %}</ul>
+    <h6>Acta final</h6>
+    <p class="text-muted">Documento narrativo formal que desarrolla los puntos como PRIMERO, SEGUNDO, TERCERO, CUARTO, QUINTO, SEXTO, SÉPTIMO y OCTAVO.</p>
+    {% if acta and acta.contenido_final %}<p>{{ acta.contenido_final|truncatewords:80 }}</p>{% else %}<p class="text-muted">Sin contenido final registrado.</p>{% endif %}
+    <h6>Acuerdos</h6><ul>{% for a in acuerdos %}<li>{{ a }}</li>{% empty %}<li>Sin acuerdos.</li>{% endfor %}</ul>
+    <h6>Asuntos pendientes y seguimiento</h6>
+    <div class="row mb-2">
+      <div class="col-md-3"><span class="badge badge-light-warning">Activos: {{ resumen_pendientes.activos_heredados }}</span></div>
+      <div class="col-md-3"><span class="badge badge-light-primary">En seguimiento: {{ resumen_pendientes.en_seguimiento }}</span></div>
+      <div class="col-md-3"><span class="badge badge-light-success">Resueltos en sesión: {{ resumen_pendientes.resueltos_sesion }}</span></div>
+      <div class="col-md-3"><span class="badge badge-light-dark">Cerrados: {{ resumen_pendientes.cerrados }}</span></div>
+    </div>
+    <div class="mb-2 d-flex flex-wrap gap-2"><a class="btn btn-sm btn-primary" href="{% url 'actas_app:pendiente_create' %}?sesion={{ sesion.pk }}">Agregar punto pendiente</a><a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:sesion_pendientes' sesion.pk %}">Registrar seguimiento / Ver historial</a></div>
+    <ul>{% for seguimiento in pendientes_tratados.seguimientos %}<li><strong>{{ seguimiento.asunto_pendiente.titulo }}:</strong> {{ seguimiento.detalle }} <span class="badge badge-light-primary">{{ seguimiento.get_estado_nuevo_display }}</span></li>{% empty %}{% for p in pendientes %}<li><a href="{% url 'actas_app:pendiente_detail' p.pk %}?sesion={{ sesion.pk }}">{{ p }}</a> - {{ p.get_estado_display }}</li>{% empty %}<li>Sin pendientes.</li>{% endfor %}{% endfor %}</ul>
+  </div></div>
+</div></div>
+
+{% if acta and acta.estado == 'en_revision' %}
+<div class="modal fade" id="aprobarActaModal" tabindex="-1" aria-labelledby="aprobarActaModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'actas_app:acta_cambiar_estado' sesion.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="accion" value="aprobar">
+        <div class="modal-header"><h5 class="modal-title" id="aprobarActaModalLabel">Aprobar acta</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+        <div class="modal-body">
+          <p>¿Está seguro de aprobar esta acta? Después de aprobarla, se recomienda no modificar su contenido.</p>
+          {% if pendientes_aprobacion %}
+            <div class="alert alert-warning"><strong>Antes de aprobar falta:</strong> {{ pendientes_aprobacion|join:', ' }}.</div>
+          {% endif %}
+          {% if not puede_aprobar_acta %}
+            <div class="alert alert-danger">No tienes permiso para aprobar actas.</div>
+          {% endif %}
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-success">Sí, aprobar acta</button></div>
+      </form>
+    </div>
+  </div>
 </div>
-<div class="card"><div class="card-body">
-<p><strong>Fecha:</strong> {{ sesion.fecha }} | <strong>Lugar:</strong> {{ sesion.lugar }}</p>
-<p><strong>Quórum:</strong> {{ sesion.quorum_alcanzado }}/{{ sesion.quorum_requerido }} {% if sesion.cumple_quorum %}<span class="badge badge-light-success">Cumple</span>{% else %}<span class="badge badge-light-danger">No cumple</span>{% endif %}</p>
-<h6>Acuerdos</h6><ul>{% for a in acuerdos %}<li>{{ a }}</li>{% empty %}<li>Sin acuerdos.</li>{% endfor %}</ul>
-<h6>Pendientes relacionados</h6><ul>{% for p in pendientes %}<li><a href="{% url 'actas_app:pendiente_detail' p.pk %}">{{ p }}</a></li>{% empty %}<li>Sin pendientes.</li>{% endfor %}</ul>
-</div></div>
-</div></div>
+{% endif %}
 {% endblock %}

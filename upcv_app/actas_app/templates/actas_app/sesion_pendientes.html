@@ -1,0 +1,37 @@
+{% extends 'almacen/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid">
+  {% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}{% endif %}
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div><h4>Asuntos pendientes y seguimiento — Sesión {{ sesion.numero }}/{{ sesion.anio }}</h4><p class="text-muted mb-0">Registra el seguimiento en la sesión donde se trató para que aparezca en el acta.</p></div>
+    <a class="btn btn-light" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Volver a sesión</a>
+  </div>
+  {% if bloqueado %}<div class="alert alert-warning">El acta ya está aprobada. No se pueden agregar o cambiar seguimientos.</div>{% endif %}
+
+  <div class="row mb-3">
+    <div class="col-md-3"><div class="card"><div class="card-body"><h6>Pendientes activos</h6><h3>{{ resumen_pendientes.activos_heredados }}</h3></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><h6>En seguimiento</h6><h3>{{ resumen_pendientes.en_seguimiento }}</h3></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><h6>Resueltos en esta sesión</h6><h3>{{ resumen_pendientes.resueltos_sesion }}</h3></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><h6>Cerrados/Resueltos</h6><h3>{{ resumen_pendientes.cerrados }}</h3></div></div></div>
+  </div>
+
+  <div class="mb-3 d-flex flex-wrap gap-2">
+    {% if not bloqueado %}<a class="btn btn-primary" href="{% url 'actas_app:pendiente_create' %}?sesion={{ sesion.pk }}">Agregar punto pendiente</a>{% endif %}
+    <a class="btn btn-outline-primary" href="{% url 'actas_app:pendiente_list' %}">Ver historial general</a>
+    <a class="btn btn-outline-secondary" href="{% url 'actas_app:acta_generar' sesion.pk %}">Generar pendientes en acta</a>
+  </div>
+
+  <div class="card mb-3"><div class="card-body">
+    <h6>Pendientes vinculados a esta sesión</h6>
+    <div class="table-responsive"><table class="table table-striped align-middle">
+      <thead><tr><th>Número</th><th>Punto pendiente</th><th>Sesión de origen</th><th>Estado actual</th><th>Último seguimiento</th><th>Acciones</th></tr></thead>
+      <tbody>{% for pendiente in pendientes %}<tr><td>{{ forloop.counter }}</td><td>{{ pendiente.titulo }}</td><td>{% with origen=pendiente.sesiones.all|first %}{% if origen %}{{ origen.numero }}/{{ origen.anio }}{% else %}-{% endif %}{% endwith %}</td><td><span class="badge {% if pendiente.estado == 'abierto' %}badge-light-warning{% elif pendiente.estado == 'en_proceso' %}badge-light-primary{% elif pendiente.estado == 'resuelto' %}badge-light-success{% else %}badge-light-secondary{% endif %}">{{ pendiente.get_estado_display }}</span></td><td>{% with ultimo=pendiente.seguimientos.all|first %}{% if ultimo %}{{ ultimo.detalle|truncatewords:14 }}{% else %}Sin seguimiento{% endif %}{% endwith %}</td><td class="d-flex flex-wrap gap-1"><a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:pendiente_detail' pendiente.pk %}?sesion={{ sesion.pk }}">Ver historial</a>{% if not bloqueado %}<a class="btn btn-sm btn-primary" href="{% url 'actas_app:pendiente_detail' pendiente.pk %}?sesion={{ sesion.pk }}">Registrar seguimiento</a>{% endif %}</td></tr>{% empty %}<tr><td colspan="6">No hay asuntos pendientes vinculados a esta sesión.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    <h6>Seguimientos registrados en esta sesión</h6>
+    <div class="table-responsive"><table class="table table-striped"><thead><tr><th>Punto</th><th>Seguimiento</th><th>Estado resultante</th><th>Fecha</th></tr></thead><tbody>{% for seguimiento in pendientes_tratados.seguimientos %}<tr><td>{{ seguimiento.asunto_pendiente.titulo }}</td><td>{{ seguimiento.detalle }}</td><td>{{ seguimiento.get_estado_nuevo_display }}</td><td>{{ seguimiento.fecha }}</td></tr>{% empty %}<tr><td colspan="4">Aún no hay seguimientos registrados en esta sesión.</td></tr>{% endfor %}</tbody></table></div>
+  </div></div>
+</div></div>
+{% endblock %}

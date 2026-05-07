@@ -230,10 +230,23 @@ class InformeSesion(TimeStampedModel):
         verbose_name_plural = "Informes de sesión"
 
     def clean(self):
+        for campo in ["saldo_inicial", "ingresos", "egresos", "fondo_especial"]:
+            valor = getattr(self, campo) or Decimal("0.00")
+            if valor < 0:
+                raise ValidationError({campo: "Este valor no puede ser negativo."})
         if self.tipo_informe == self.TipoInforme.FINANCIERO:
-            calculado = (self.saldo_inicial + self.ingresos) - self.egresos
-            if self.saldo_final != calculado:
-                raise ValidationError("Saldo final debe coincidir con saldo inicial + ingresos - egresos.")
+            self.saldo_final = (self.saldo_inicial or Decimal("0.00")) + (self.ingresos or Decimal("0.00")) - (self.egresos or Decimal("0.00"))
+
+    def save(self, *args, **kwargs):
+        if self.tipo_informe == self.TipoInforme.FINANCIERO:
+            self.saldo_final = (self.saldo_inicial or Decimal("0.00")) + (self.ingresos or Decimal("0.00")) - (self.egresos or Decimal("0.00"))
+        else:
+            self.saldo_inicial = Decimal("0.00")
+            self.ingresos = Decimal("0.00")
+            self.egresos = Decimal("0.00")
+            self.saldo_final = Decimal("0.00")
+            self.fondo_especial = Decimal("0.00")
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.sesion} - {self.area}"
@@ -438,14 +451,25 @@ class AreaInformeCatalogo(TimeStampedModel):
 
 
 class TextoBaseActa(TimeStampedModel):
+    class Seccion(models.TextChoices):
+        APERTURA = "apertura", "Apertura"
+        AGENDA = "agenda", "Agenda"
+        ACTA_ANTERIOR = "acta_anterior", "Acta anterior"
+        INFORMES = "informes", "Informes"
+        CORRESPONDENCIA = "correspondencia", "Correspondencia"
+        PENDIENTES = "pendientes", "Asuntos pendientes"
+        ASUNTOS_NUEVOS = "asuntos_nuevos", "Asuntos nuevos"
+        CIERRE = "cierre", "Cierre"
+
     nombre = models.CharField(max_length=120, unique=True)
+    seccion = models.CharField(max_length=30, choices=Seccion.choices, default=Seccion.APERTURA)
     contenido = models.TextField()
     activo = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ["nombre"]
-        verbose_name = "Texto base de acta"
-        verbose_name_plural = "Textos base de acta"
+        ordering = ["seccion", "nombre"]
+        verbose_name = "Plantilla de redacción del acta"
+        verbose_name_plural = "Plantillas de redacción del acta"
 
     def __str__(self):
-        return self.nombre
+        return f"{self.nombre} ({self.get_seccion_display()})"
