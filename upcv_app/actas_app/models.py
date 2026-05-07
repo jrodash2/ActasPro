@@ -451,14 +451,25 @@ class AreaInformeCatalogo(TimeStampedModel):
 
 
 class TextoBaseActa(TimeStampedModel):
+    class Seccion(models.TextChoices):
+        APERTURA = "apertura", "Apertura"
+        AGENDA = "agenda", "Agenda"
+        ACTA_ANTERIOR = "acta_anterior", "Acta anterior"
+        INFORMES = "informes", "Informes"
+        CORRESPONDENCIA = "correspondencia", "Correspondencia"
+        PENDIENTES = "pendientes", "Asuntos pendientes"
+        ASUNTOS_NUEVOS = "asuntos_nuevos", "Asuntos nuevos"
+        CIERRE = "cierre", "Cierre"
+
     nombre = models.CharField(max_length=120, unique=True)
+    seccion = models.CharField(max_length=30, choices=Seccion.choices, default=Seccion.APERTURA)
     contenido = models.TextField()
     activo = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ["nombre"]
-        verbose_name = "Texto base de acta"
-        verbose_name_plural = "Textos base de acta"
+        ordering = ["seccion", "nombre"]
+        verbose_name = "Plantilla de redacción del acta"
+        verbose_name_plural = "Plantillas de redacción del acta"
 
     def __str__(self):
-        return self.nombre
+        return f"{self.nombre} ({self.get_seccion_display()})"

@@ -44,7 +44,7 @@ from .models import (
     TipoSesion,
     AreaInformeCatalogo,
 )
-from .services.acta_generator import generar_borrador_acta
+from .services.acta_generator import VARIABLES_TEXTO_BASE, generar_borrador_acta, previsualizar_texto_base
 from .services.docx_export import build_acta_docx
 
 
@@ -626,7 +626,10 @@ def pendiente_detail(request, pk):
         if sesion_actual and acta_esta_aprobada(sesion_actual):
             messages.error(request, "El acta ya está aprobada. No se pueden registrar seguimientos para esta sesión.")
             return redirect("actas_app:pendiente_detail", pk=pk)
-        form = SeguimientoAsuntoPendienteForm(request.POST)
+        post_data = request.POST.copy()
+        if sesion_actual:
+            post_data["sesion"] = sesion_actual.pk
+        form = SeguimientoAsuntoPendienteForm(post_data)
         if form.is_valid():
             seguimiento = form.save(commit=False)
             seguimiento.asunto_pendiente = pendiente
@@ -894,6 +897,10 @@ def acta_generar(request, sesion_id):
             "redactado_por": request.user,
         },
     )
+    if acta_esta_aprobada(sesion):
+        messages.error(request, "El acta ya está aprobada. No se puede regenerar el borrador.")
+        return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
+
     acta.contenido_borrador = generar_borrador_acta(sesion)
     acta.save(update_fields=["contenido_borrador", "actualizado_en"])
     registrar_bitacora(request.user, str(sesion), "generación de acta", "Borrador generado automáticamente")
@@ -918,7 +925,7 @@ def acta_word_download(request, sesion_id):
         messages.error(request, "La sesión aún no tiene un acta creada.")
         return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
 
-    if not (acta.contenido_final or "").strip():
+    if not (acta.contenido_final or "").strip() and acta.estado != ActaSesion.Estado.APROBADA:
         acta.contenido_borrador = generar_borrador_acta(sesion)
         acta.save(update_fields=["contenido_borrador", "actualizado_en"])
 
@@ -1092,23 +1099,31 @@ def punto_plantilla_edit(request, pk):
 @login_required
 @grupo_requerido("Administrador", "Almacen")
 def texto_base_list(request):
-    return render(request, "actas_app/catalog_list.html", {
-        "title": "Textos base de acta",
-        "items": TextoBaseActa.objects.all(),
-        "new_url": "actas_app:texto_base_create",
-        "edit_url": "actas_app:texto_base_edit",
-    })
+    return render(
+        request,
+        "actas_app/texto_base_list.html",
+        {
+            "title": "Plantillas de redacción del acta",
+            "items": TextoBaseActa.objects.all(),
+            "variables": VARIABLES_TEXTO_BASE,
+        },
+    )
 
 
 @login_required
 @grupo_requerido("Administrador", "Almacen")
 def texto_base_create(request):
     form = TextoBaseActaForm(request.POST or None)
+    preview = previsualizar_texto_base(request.POST.get("contenido", "")) if request.method == "POST" else ""
     if request.method == "POST" and form.is_valid():
         form.save()
-        messages.success(request, "Texto base creado.")
+        messages.success(request, "Plantilla de redacción creada.")
         return redirect("actas_app:texto_base_list")
-    return render(request, "actas_app/simple_form.html", {"title": "Nuevo texto base", "form": form})
+    return render(
+        request,
+        "actas_app/texto_base_form.html",
+        {"title": "Nueva plantilla de redacción del acta", "form": form, "variables": VARIABLES_TEXTO_BASE, "preview": preview},
+    )
 
 
 @login_required
@@ -1116,11 +1131,27 @@ def texto_base_create(request):
 def texto_base_edit(request, pk):
     item = get_object_or_404(TextoBaseActa, pk=pk)
     form = TextoBaseActaForm(request.POST or None, instance=item)
+    contenido_preview = request.POST.get("contenido", item.contenido)
+    preview = previsualizar_texto_base(contenido_preview)
     if request.method == "POST" and form.is_valid():
         form.save()
-        messages.success(request, "Texto base actualizado.")
+        messages.success(request, "Plantilla de redacción actualizada.")
         return redirect("actas_app:texto_base_list")
-    return render(request, "actas_app/simple_form.html", {"title": "Editar texto base", "form": form})
+    return render(
+        request,
+        "actas_app/texto_base_form.html",
+        {"title": "Editar plantilla de redacción del acta", "form": form, "variables": VARIABLES_TEXTO_BASE, "preview": preview},
+    )
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def texto_base_toggle(request, pk):
+    item = get_object_or_404(TextoBaseActa, pk=pk)
+    item.activo = not item.activo
+    item.save(update_fields=["activo", "actualizado_en"])
+    messages.success(request, "Estado de la plantilla actualizado.")
+    return redirect("actas_app:texto_base_list")
 
 
 @login_required

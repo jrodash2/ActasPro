@@ -47,6 +47,7 @@ urlpatterns = [
     path("configuracion/textos-base/", views.texto_base_list, name="texto_base_list"),
     path("configuracion/textos-base/nuevo/", views.texto_base_create, name="texto_base_create"),
     path("configuracion/textos-base/<int:pk>/editar/", views.texto_base_edit, name="texto_base_edit"),
+    path("configuracion/textos-base/<int:pk>/estado/", views.texto_base_toggle, name="texto_base_toggle"),
     path("configuracion/areas-informe/", views.area_informe_list, name="area_informe_list"),
     path("configuracion/areas-informe/nueva/", views.area_informe_create, name="area_informe_create"),
     path("configuracion/areas-informe/<int:pk>/editar/", views.area_informe_edit, name="area_informe_edit"),

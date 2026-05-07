@@ -139,6 +139,6 @@ class AreaInformeCatalogoAdmin(admin.ModelAdmin):
 
 @admin.register(TextoBaseActa)
 class TextoBaseActaAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "activo", "actualizado_en")
-    list_filter = ("activo",)
+    list_display = ("nombre", "seccion", "activo", "actualizado_en")
+    list_filter = ("seccion", "activo")
     search_fields = ("nombre", "contenido")

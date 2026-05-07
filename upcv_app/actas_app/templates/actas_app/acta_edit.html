@@ -40,16 +40,17 @@
         <strong>Agenda vs. acta final:</strong> la agenda es el checklist de la sesión; el acta final es el texto narrativo formal en apartados PRIMERO, SEGUNDO, TERCERO, etc.
       </div>
       <div class="alert alert-info">
-        Los seguimientos registrados en esta sesión se incluirán automáticamente en el acta final al generar o regenerar el borrador.
+        Este borrador se genera automáticamente con los datos registrados en la sesión. Si agrega seguimientos, informes o asuntos nuevos, debe presionar <strong>Regenerar borrador del acta</strong> para actualizar el texto. Los seguimientos registrados en esta sesión se incluirán automáticamente en la sección SEXTO. ASUNTOS PENDIENTES.
       </div>
       {% if acta.contenido_final %}
         <div class="alert alert-warning">
-          El contenido final ya tiene texto guardado. Regenerar el borrador actualizará los datos de la sesión, pero no sobrescribirá el contenido final editado manualmente.
+          El contenido final fue editado manualmente. Regenerar el borrador no reemplaza el contenido final hasta que usted lo confirme.
         </div>
       {% endif %}
       {{ form.as_p }}
       <div class="d-flex flex-wrap gap-2">
         <button class="btn btn-primary" type="submit" {% if acta.estado == 'aprobada' %}disabled{% endif %}>Guardar acta</button>
+        <a class="btn btn-secondary {% if acta.estado == 'aprobada' %}disabled{% endif %}" href="{% url 'actas_app:acta_generar' sesion.pk %}">Regenerar borrador del acta</a>
         {% if acta.estado == 'borrador' %}
           <button class="btn btn-info" type="submit" formaction="{% url 'actas_app:acta_cambiar_estado' sesion.pk %}" name="accion" value="enviar_revision">Enviar a revisión</button>
         {% elif acta.estado == 'en_revision' %}

@@ -1,0 +1,43 @@
+{% extends 'almacen/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid">
+  {% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}{% endif %}
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+      <h4>{{ title }}</h4>
+      <p class="mb-0 text-muted">Los textos base no reemplazan los datos de la sesión; solo definen la redacción que usará el sistema al generar el borrador del acta.</p>
+    </div>
+    <a class="btn btn-light" href="{% url 'actas_app:texto_base_list' %}">Volver</a>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card"><div class="card-body">
+        {% if form.errors %}<div class="alert alert-danger">No se pudo guardar la plantilla. {{ form.errors }}</div>{% endif %}
+        <form method="post">
+          {% csrf_token %}
+          {{ form.as_p }}
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Guardar plantilla</button>
+            <a class="btn btn-light" href="{% url 'actas_app:texto_base_list' %}">Cancelar</a>
+          </div>
+        </form>
+      </div></div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card mb-3"><div class="card-body">
+        <h6>Variables disponibles</h6>
+        <p class="text-muted">Puede usar variables como <code>{fecha}</code>, <code>{hora_inicio}</code>, <code>{presentes}</code>, <code>{moderador}</code> y <code>{secretario}</code>.</p>
+        <div class="d-flex flex-wrap gap-2">
+          {% for variable in variables %}<code>{% templatetag openbrace %}{{ variable }}{% templatetag closebrace %}</code>{% endfor %}
+        </div>
+      </div></div>
+      <div class="card"><div class="card-body">
+        <h6>Vista previa simple</h6>
+        <p class="text-muted">Guarde o envíe el formulario para probar la plantilla con datos de ejemplo.</p>
+        <div class="border rounded p-2 bg-light" style="white-space: pre-wrap;">{{ preview|default:'Sin vista previa todavía.' }}</div>
+      </div></div>
+    </div>
+  </div>
+</div></div>
+{% endblock %}

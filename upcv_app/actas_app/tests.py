@@ -5,7 +5,7 @@ from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import ActaSesion, AsistenciaSesion, InformeSesion, AsuntoPendiente, SeguimientoAsuntoPendiente, MiembroConsistorio, PuntoAgendaSesion, SesionConsistorial, TipoSesion
+from .models import ActaSesion, AsistenciaSesion, InformeSesion, AsuntoPendiente, SeguimientoAsuntoPendiente, MiembroConsistorio, PuntoAgendaSesion, SesionConsistorial, TextoBaseActa, TipoSesion
 from .services.acta_generator import generar_borrador_acta
 
 
@@ -542,3 +542,35 @@ class PendienteSeguimientoFlowTests(TestCase):
         self.assertIn("por lo que el punto queda resuelto", contenido)
         self.assertNotIn(seguimiento_anterior.detalle.rstrip("."), contenido)
         self.assertEqual(contenido.count("Remodelación casa pastoral"), 1)
+
+    def test_generador_acta_aplica_plantilla_base_para_pendientes(self):
+        TextoBaseActa.objects.create(
+            nombre="Pendiente narrativo",
+            seccion=TextoBaseActa.Seccion.PENDIENTES,
+            contenido="{numero} {titulo}. {seguimiento}, quedando finalmente {estado}.",
+        )
+        SeguimientoAsuntoPendiente.objects.create(
+            asunto_pendiente=self.pendiente,
+            sesion=self.sesion_actual,
+            detalle="Se informa que la reparación fue revisada",
+            estado_anterior=AsuntoPendiente.Estado.ABIERTO,
+            estado_nuevo=AsuntoPendiente.Estado.RESUELTO,
+            usuario=self.user,
+        )
+        self.pendiente.estado = AsuntoPendiente.Estado.RESUELTO
+        self.pendiente.save(update_fields=["estado"])
+
+        contenido = generar_borrador_acta(self.sesion_actual)
+
+        self.assertIn("6.1 Remodelación casa pastoral. Se informa que la reparación fue revisada, quedando finalmente resuelto.", contenido)
+
+    def test_generador_acta_aplica_plantilla_base_de_apertura_con_variables(self):
+        TextoBaseActa.objects.create(
+            nombre="Apertura personalizada",
+            seccion=TextoBaseActa.Seccion.APERTURA,
+            contenido="En {lugar}, preside {moderador} y secretaria {secretario} con {presentes} presentes.",
+        )
+
+        contenido = generar_borrador_acta(self.sesion_actual)
+
+        self.assertIn("En Salón, preside Pedro Lopez y secretaria Pedro Lopez con sin presentes registrados presentes.", contenido)

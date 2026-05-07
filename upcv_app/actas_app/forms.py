@@ -250,6 +250,12 @@ class AsuntoPendienteForm(forms.ModelForm):
 
 
 class SeguimientoAsuntoPendienteForm(forms.ModelForm):
+    sesion = forms.ModelChoiceField(
+        queryset=SesionConsistorial.objects.all(),
+        required=True,
+        label="Sesión donde se trató",
+        widget=forms.Select(attrs={"class": "form-control"}),
+    )
     detalle = forms.CharField(
         required=False,
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 4, "placeholder": "Describe el seguimiento tratado en esta sesión"}),
@@ -259,7 +265,6 @@ class SeguimientoAsuntoPendienteForm(forms.ModelForm):
         model = SeguimientoAsuntoPendiente
         fields = ["sesion", "detalle", "estado_nuevo"]
         widgets = {
-            "sesion": forms.Select(attrs={"class": "form-control"}),
             "estado_nuevo": forms.Select(attrs={"class": "form-control"}),
         }
 
@@ -368,8 +373,18 @@ class AreaInformeCatalogoForm(forms.ModelForm):
 class TextoBaseActaForm(forms.ModelForm):
     class Meta:
         model = TextoBaseActa
-        fields = ["nombre", "contenido", "activo"]
+        fields = ["nombre", "seccion", "contenido", "activo"]
+        labels = {
+            "nombre": "Nombre del texto base",
+            "seccion": "Sección del acta",
+            "contenido": "Texto o plantilla",
+            "activo": "Activo",
+        }
+        help_texts = {
+            "contenido": "Puede usar variables como {fecha}, {hora_inicio}, {presentes}, {moderador} y {secretario}.",
+        }
         widgets = {
             "nombre": forms.TextInput(attrs={"class": "form-control"}),
-            "contenido": forms.Textarea(attrs={"class": "form-control", "rows": 5}),
+            "seccion": forms.Select(attrs={"class": "form-control"}),
+            "contenido": forms.Textarea(attrs={"class": "form-control", "rows": 8}),
         }
