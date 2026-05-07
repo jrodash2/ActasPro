@@ -24,18 +24,65 @@ def _formatear_informe(informe):
     return f"{informe.area}. {informe.expositor}: {informe.resumen}"
 
 
+def _normalizar_oracion(texto):
+    return (texto or "").strip().rstrip(".")
+
+
+def _texto_estado_pendiente(estado):
+    textos_estado = {
+        "abierto": "abierto",
+        "en_proceso": "en proceso",
+        "pospuesto": "pospuesto",
+        "resuelto": "resuelto",
+    }
+    return textos_estado.get(estado, str(estado or "pendiente").replace("_", " ").lower())
+
+
+def _cierre_estado_pendiente(estado):
+    estado_texto = _texto_estado_pendiente(estado)
+    if estado == "resuelto":
+        return f"por lo que el punto queda {estado_texto}."
+    return f"quedando el punto {estado_texto}."
+
+
+def _formatear_pendiente_narrativo(indice, pendiente, seguimientos=None):
+    seguimientos = seguimientos or []
+    titulo = _normalizar_oracion(pendiente.titulo)
+    if seguimientos:
+        detalles = " ".join(
+            _normalizar_oracion(seguimiento.detalle)
+            for seguimiento in seguimientos
+            if _normalizar_oracion(seguimiento.detalle)
+        )
+        detalles = detalles or "Se deja constancia del seguimiento tratado"
+        estado_resultante = seguimientos[-1].estado_nuevo
+    else:
+        detalles = _normalizar_oracion(pendiente.descripcion) or "Se deja constancia del asunto pendiente"
+        estado_resultante = pendiente.estado
+    return f"6.{indice} {titulo}. {detalles}, {_cierre_estado_pendiente(estado_resultante)}"
+
+
 def _formatear_pendientes(sesion):
-    seguimientos = list(sesion.seguimientos.select_related("asunto_pendiente").order_by("fecha"))
-    lineas = [
-        f"{seguimiento.asunto_pendiente.titulo}. {seguimiento.detalle} Estado: {seguimiento.get_estado_nuevo_display()}."
-        for seguimiento in seguimientos
-    ]
-    pendientes_con_seguimiento = {seguimiento.asunto_pendiente_id for seguimiento in seguimientos}
-    for pendiente in sesion.pendientes_vinculados.filter(activo=True).order_by("titulo"):
-        if pendiente.pk in pendientes_con_seguimiento:
+    seguimientos = list(sesion.seguimientos.select_related("asunto_pendiente").order_by("fecha", "pk"))
+    seguimientos_por_pendiente = {}
+    pendientes_ordenados = []
+
+    for seguimiento in seguimientos:
+        pendiente = seguimiento.asunto_pendiente
+        if pendiente.pk not in seguimientos_por_pendiente:
+            seguimientos_por_pendiente[pendiente.pk] = []
+            pendientes_ordenados.append(pendiente)
+        seguimientos_por_pendiente[pendiente.pk].append(seguimiento)
+
+    for pendiente in sesion.pendientes_vinculados.filter(activo=True).order_by("titulo", "pk"):
+        if pendiente.pk in seguimientos_por_pendiente:
             continue
-        lineas.append(f"{pendiente.titulo}. {pendiente.descripcion} Estado: {pendiente.get_estado_display()}.")
-    return lineas
+        pendientes_ordenados.append(pendiente)
+
+    return [
+        _formatear_pendiente_narrativo(indice, pendiente, seguimientos_por_pendiente.get(pendiente.pk))
+        for indice, pendiente in enumerate(pendientes_ordenados, start=1)
+    ]
 
 
 def generar_borrador_acta(sesion):
@@ -95,7 +142,7 @@ QUINTO. CORRESPONDENCIA
 {_lineas(correspondencias)}
 
 SEXTO. ASUNTOS PENDIENTES
-{_lineas(pendientes)}
+{_lineas(pendientes, prefijo="")}
 
 SÉPTIMO. ASUNTOS NUEVOS
 {_lineas(nuevos)}

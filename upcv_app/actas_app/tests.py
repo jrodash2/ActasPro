@@ -70,8 +70,8 @@ class ActaWordDownloadTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertGreater(len(response.content), 0)
 
-    def test_redirects_with_message_when_no_content(self):
-        ActaSesion.objects.create(
+    def test_word_download_regenerates_borrador_when_no_final_content(self):
+        acta = ActaSesion.objects.create(
             sesion=self.sesion,
             numero_acta=3,
             anio=2026,
@@ -80,11 +80,12 @@ class ActaWordDownloadTests(TestCase):
             redactado_por=self.user,
         )
         url = reverse("actas_app:acta_word_download", args=[self.sesion.pk])
-        response = self.client.get(url, follow=True)
+        response = self.client.get(url)
 
-        self.assertRedirects(response, reverse("actas_app:acta_edit", kwargs={"sesion_id": self.sesion.pk}))
-        messages = list(response.context["messages"])
-        self.assertTrue(any("no tiene contenido para exportar" in str(message).lower() for message in messages))
+        self.assertEqual(response.status_code, 200)
+        acta.refresh_from_db()
+        self.assertIn("SEXTO. ASUNTOS PENDIENTES", acta.contenido_borrador)
+        self.assertGreater(len(response.content), 0)
 
 
 class ActaEstadoFlowTests(TestCase):
@@ -509,6 +510,35 @@ class PendienteSeguimientoFlowTests(TestCase):
 
         contenido = generar_borrador_acta(self.sesion_actual)
 
-        self.assertIn("Remodelación casa pastoral", contenido)
+        self.assertIn("6.1 Remodelación casa pastoral", contenido)
         self.assertIn("Se informa que ya se solicitó cotización de mano de obra", contenido)
-        self.assertIn("Estado: En proceso", contenido)
+        self.assertIn("quedando el punto en proceso", contenido)
+        self.assertNotIn("Estado: En proceso", contenido)
+
+    def test_generador_acta_usa_seguimiento_de_sesion_actual_sin_duplicar_pendiente(self):
+        seguimiento_anterior = SeguimientoAsuntoPendiente.objects.create(
+            asunto_pendiente=self.pendiente,
+            sesion=self.sesion_origen,
+            detalle="Se presentó el asunto en una sesión anterior.",
+            estado_anterior=AsuntoPendiente.Estado.ABIERTO,
+            estado_nuevo=AsuntoPendiente.Estado.ABIERTO,
+            usuario=self.user,
+        )
+        seguimiento_actual = SeguimientoAsuntoPendiente.objects.create(
+            asunto_pendiente=self.pendiente,
+            sesion=self.sesion_actual,
+            detalle="Se informa que ya fueron instaladas las puertas solicitadas.",
+            estado_anterior=AsuntoPendiente.Estado.ABIERTO,
+            estado_nuevo=AsuntoPendiente.Estado.RESUELTO,
+            usuario=self.user,
+        )
+        self.pendiente.estado = AsuntoPendiente.Estado.RESUELTO
+        self.pendiente.save(update_fields=["estado"])
+
+        contenido = generar_borrador_acta(self.sesion_actual)
+
+        self.assertIn("6.1 Remodelación casa pastoral", contenido)
+        self.assertIn(seguimiento_actual.detalle.rstrip("."), contenido)
+        self.assertIn("por lo que el punto queda resuelto", contenido)
+        self.assertNotIn(seguimiento_anterior.detalle.rstrip("."), contenido)
+        self.assertEqual(contenido.count("Remodelación casa pastoral"), 1)

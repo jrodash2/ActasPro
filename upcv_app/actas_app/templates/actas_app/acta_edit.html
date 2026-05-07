@@ -39,6 +39,14 @@
       <div class="alert alert-info">
         <strong>Agenda vs. acta final:</strong> la agenda es el checklist de la sesión; el acta final es el texto narrativo formal en apartados PRIMERO, SEGUNDO, TERCERO, etc.
       </div>
+      <div class="alert alert-info">
+        Los seguimientos registrados en esta sesión se incluirán automáticamente en el acta final al generar o regenerar el borrador.
+      </div>
+      {% if acta.contenido_final %}
+        <div class="alert alert-warning">
+          El contenido final ya tiene texto guardado. Regenerar el borrador actualizará los datos de la sesión, pero no sobrescribirá el contenido final editado manualmente.
+        </div>
+      {% endif %}
       {{ form.as_p }}
       <div class="d-flex flex-wrap gap-2">
         <button class="btn btn-primary" type="submit" {% if acta.estado == 'aprobada' %}disabled{% endif %}>Guardar acta</button>

@@ -897,7 +897,12 @@ def acta_generar(request, sesion_id):
     acta.contenido_borrador = generar_borrador_acta(sesion)
     acta.save(update_fields=["contenido_borrador", "actualizado_en"])
     registrar_bitacora(request.user, str(sesion), "generación de acta", "Borrador generado automáticamente")
-    messages.success(request, "Borrador de acta generado.")
+    messages.success(request, "Borrador de acta generado con los seguimientos registrados en esta sesión.")
+    if (acta.contenido_final or "").strip():
+        messages.warning(
+            request,
+            "El contenido final ya tiene edición manual; no fue sobrescrito. Revisa si deseas copiar los cambios del borrador actualizado.",
+        )
     return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
 
 
@@ -912,6 +917,10 @@ def acta_word_download(request, sesion_id):
     if not acta:
         messages.error(request, "La sesión aún no tiene un acta creada.")
         return redirect("actas_app:acta_edit", sesion_id=sesion.pk)
+
+    if not (acta.contenido_final or "").strip():
+        acta.contenido_borrador = generar_borrador_acta(sesion)
+        acta.save(update_fields=["contenido_borrador", "actualizado_en"])
 
     contenido = (acta.contenido_final or acta.contenido_borrador or "").strip()
     if not contenido:
