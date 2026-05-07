@@ -2,7 +2,7 @@ from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import ActaSesion, MiembroConsistorio, SesionConsistorial, TipoSesion
+from .models import ActaSesion, AsistenciaSesion, MiembroConsistorio, PuntoAgendaSesion, SesionConsistorial, TipoSesion
 
 
 class ActaWordDownloadTests(TestCase):
@@ -12,7 +12,7 @@ class ActaWordDownloadTests(TestCase):
         self.user.groups.add(self.group)
         self.client.login(username="tester", password="123456")
 
-        self.tipo = TipoSesion.objects.create(nombre="Ordinaria")
+        self.tipo, _ = TipoSesion.objects.get_or_create(nombre="Ordinaria")
         self.moderador = MiembroConsistorio.objects.create(
             nombres="Juan", apellidos="Perez", cargo="Moderador", tipo_miembro=MiembroConsistorio.TipoMiembro.ANCIANO
         )
@@ -81,3 +81,98 @@ class ActaWordDownloadTests(TestCase):
         self.assertRedirects(response, reverse("actas_app:acta_edit", kwargs={"sesion_id": self.sesion.pk}))
         messages = list(response.context["messages"])
         self.assertTrue(any("no tiene contenido para exportar" in str(message).lower() for message in messages))
+
+
+class ActaEstadoFlowTests(TestCase):
+    def setUp(self):
+        self.admin_group, _ = Group.objects.get_or_create(name="Administrador")
+        self.almacen_group, _ = Group.objects.get_or_create(name="Almacen")
+        self.user = User.objects.create_user(username="admin_actas", password="123456")
+        self.user.groups.add(self.admin_group)
+        self.client.login(username="admin_actas", password="123456")
+
+        self.tipo, _ = TipoSesion.objects.get_or_create(nombre="Extraordinaria")
+        self.moderador = MiembroConsistorio.objects.create(
+            nombres="Luis", apellidos="Gomez", cargo="Moderador", tipo_miembro=MiembroConsistorio.TipoMiembro.ANCIANO
+        )
+        self.secretario = MiembroConsistorio.objects.create(
+            nombres="Maria", apellidos="Rojas", cargo="Secretaria", tipo_miembro=MiembroConsistorio.TipoMiembro.DIACONO
+        )
+        self.sesion = SesionConsistorial.objects.create(
+            numero=10,
+            anio=2026,
+            tipo_sesion=self.tipo,
+            fecha="2026-05-01",
+            lugar="Sala consistorial",
+            moderador=self.moderador,
+            secretario=self.secretario,
+            quorum_requerido=1,
+            creada_por=self.user,
+        )
+        self.acta = ActaSesion.objects.create(
+            sesion=self.sesion,
+            numero_acta=10,
+            anio=2026,
+            contenido_borrador="Borrador narrativo",
+            contenido_final="PRIMERO. Se abre la sesión. SEGUNDO. Se aprueba la agenda.",
+            estado=ActaSesion.Estado.EN_REVISION,
+            redactado_por=self.user,
+            revisado_por=self.user,
+        )
+        PuntoAgendaSesion.objects.create(
+            sesion=self.sesion,
+            seccion="I",
+            numeral="I",
+            titulo="Apertura",
+            tipo_punto="apertura",
+            orden=1,
+        )
+        AsistenciaSesion.objects.create(
+            sesion=self.sesion,
+            miembro=self.moderador,
+            asistencia=AsistenciaSesion.Asistencia.PRESENTE,
+        )
+
+    def test_aprobar_acta_guarda_estado_correcto(self):
+        response = self.client.post(
+            reverse("actas_app:acta_cambiar_estado", args=[self.sesion.pk]),
+            {"accion": "aprobar"},
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("actas_app:sesion_detail", args=[self.sesion.pk]))
+        self.acta.refresh_from_db()
+        self.sesion.refresh_from_db()
+        self.assertEqual(self.acta.estado, ActaSesion.Estado.APROBADA)
+        self.assertEqual(self.sesion.estado, SesionConsistorial.Estado.APROBADA)
+        self.assertEqual(self.acta.aprobado_por, self.user)
+        self.assertTrue(any("aprobada y guardada" in str(message).lower() for message in response.context["messages"]))
+
+    def test_no_aprueba_si_faltan_requisitos(self):
+        self.acta.contenido_final = ""
+        self.acta.save(update_fields=["contenido_final"])
+        response = self.client.post(
+            reverse("actas_app:acta_cambiar_estado", args=[self.sesion.pk]),
+            {"accion": "aprobar"},
+            follow=True,
+        )
+
+        self.acta.refresh_from_db()
+        self.assertEqual(self.acta.estado, ActaSesion.Estado.EN_REVISION)
+        self.assertTrue(any("contenido del acta final" in str(message).lower() for message in response.context["messages"]))
+
+    def test_usuario_sin_permiso_no_aprueba(self):
+        self.client.logout()
+        usuario_almacen = User.objects.create_user(username="solo_almacen", password="123456")
+        usuario_almacen.groups.add(self.almacen_group)
+        self.client.login(username="solo_almacen", password="123456")
+
+        response = self.client.post(
+            reverse("actas_app:acta_cambiar_estado", args=[self.sesion.pk]),
+            {"accion": "aprobar"},
+            follow=True,
+        )
+
+        self.acta.refresh_from_db()
+        self.assertEqual(self.acta.estado, ActaSesion.Estado.EN_REVISION)
+        self.assertTrue(any("no tienes permiso" in str(message).lower() for message in response.context["messages"]))
