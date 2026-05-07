@@ -100,7 +100,15 @@
     <p class="text-muted">Documento narrativo formal que desarrolla los puntos como PRIMERO, SEGUNDO, TERCERO, CUARTO, QUINTO, SEXTO, SÉPTIMO y OCTAVO.</p>
     {% if acta and acta.contenido_final %}<p>{{ acta.contenido_final|truncatewords:80 }}</p>{% else %}<p class="text-muted">Sin contenido final registrado.</p>{% endif %}
     <h6>Acuerdos</h6><ul>{% for a in acuerdos %}<li>{{ a }}</li>{% empty %}<li>Sin acuerdos.</li>{% endfor %}</ul>
-    <h6>Pendientes relacionados</h6><ul>{% for p in pendientes %}<li><a href="{% url 'actas_app:pendiente_detail' p.pk %}">{{ p }}</a></li>{% empty %}<li>Sin pendientes.</li>{% endfor %}</ul>
+    <h6>Asuntos pendientes y seguimiento</h6>
+    <div class="row mb-2">
+      <div class="col-md-3"><span class="badge badge-light-warning">Activos: {{ resumen_pendientes.activos_heredados }}</span></div>
+      <div class="col-md-3"><span class="badge badge-light-primary">En seguimiento: {{ resumen_pendientes.en_seguimiento }}</span></div>
+      <div class="col-md-3"><span class="badge badge-light-success">Resueltos en sesión: {{ resumen_pendientes.resueltos_sesion }}</span></div>
+      <div class="col-md-3"><span class="badge badge-light-dark">Cerrados: {{ resumen_pendientes.cerrados }}</span></div>
+    </div>
+    <div class="mb-2 d-flex flex-wrap gap-2"><a class="btn btn-sm btn-primary" href="{% url 'actas_app:pendiente_create' %}?sesion={{ sesion.pk }}">Agregar punto pendiente</a><a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:sesion_pendientes' sesion.pk %}">Registrar seguimiento / Ver historial</a></div>
+    <ul>{% for seguimiento in pendientes_tratados.seguimientos %}<li><strong>{{ seguimiento.asunto_pendiente.titulo }}:</strong> {{ seguimiento.detalle }} <span class="badge badge-light-primary">{{ seguimiento.get_estado_nuevo_display }}</span></li>{% empty %}{% for p in pendientes %}<li><a href="{% url 'actas_app:pendiente_detail' p.pk %}?sesion={{ sesion.pk }}">{{ p }}</a> - {{ p.get_estado_display }}</li>{% empty %}<li>Sin pendientes.</li>{% endfor %}{% endfor %}</ul>
   </div></div>
 </div></div>
 

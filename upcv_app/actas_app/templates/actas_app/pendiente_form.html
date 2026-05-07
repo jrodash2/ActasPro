@@ -1,0 +1,19 @@
+{% extends 'almacen/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid">
+  {% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}{% endif %}
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div><h4>{{ title }}</h4>{% if sesion %}<p class="text-muted mb-0">Se vinculará a la sesión {{ sesion.numero }}/{{ sesion.anio }}.</p>{% endif %}</div>
+    {% if sesion %}<a class="btn btn-light" href="{% url 'actas_app:sesion_pendientes' sesion.pk %}">Volver a pendientes</a>{% else %}<a class="btn btn-light" href="{% url 'actas_app:pendiente_list' %}">Volver</a>{% endif %}
+  </div>
+  <div class="card"><div class="card-body">
+    {% if form.errors %}<div class="alert alert-danger">No se pudo guardar. {{ form.errors }}</div>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      {% if sesion %}<input type="hidden" name="sesion" value="{{ sesion.pk }}">{% endif %}
+      {{ form.as_p }}
+      <div class="d-flex flex-wrap gap-2"><button class="btn btn-primary" type="submit">Guardar punto pendiente</button>{% if sesion %}<a class="btn btn-light" href="{% url 'actas_app:sesion_pendientes' sesion.pk %}">Cancelar</a>{% endif %}</div>
+    </form>
+  </div></div>
+</div></div>
+{% endblock %}

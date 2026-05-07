@@ -5,7 +5,7 @@ from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import ActaSesion, AsistenciaSesion, InformeSesion, MiembroConsistorio, PuntoAgendaSesion, SesionConsistorial, TipoSesion
+from .models import ActaSesion, AsistenciaSesion, InformeSesion, AsuntoPendiente, SeguimientoAsuntoPendiente, MiembroConsistorio, PuntoAgendaSesion, SesionConsistorial, TipoSesion
 from .services.acta_generator import generar_borrador_acta
 
 
@@ -409,3 +409,106 @@ class InformeSesionFlowTests(TestCase):
         self.assertIn("Tesorería. Tesorera informa", contenido)
         self.assertIn("Q 96,161.50", contenido)
         self.assertIn("Detalle adicional.", contenido)
+
+
+class PendienteSeguimientoFlowTests(TestCase):
+    def setUp(self):
+        self.group, _ = Group.objects.get_or_create(name="Almacen")
+        self.user = User.objects.create_user(username="pendientes", password="123456")
+        self.user.groups.add(self.group)
+        self.client.login(username="pendientes", password="123456")
+        self.tipo, _ = TipoSesion.objects.get_or_create(nombre="Ordinaria")
+        self.responsable = MiembroConsistorio.objects.create(nombres="Pedro", apellidos="Lopez", cargo="Responsable")
+        self.sesion_origen = SesionConsistorial.objects.create(
+            numero=40,
+            anio=2026,
+            tipo_sesion=self.tipo,
+            fecha=date(2026, 5, 4),
+            lugar="Salón",
+            moderador=self.responsable,
+            secretario=self.responsable,
+            creada_por=self.user,
+        )
+        self.sesion_actual = SesionConsistorial.objects.create(
+            numero=41,
+            anio=2026,
+            tipo_sesion=self.tipo,
+            fecha=date(2026, 5, 11),
+            lugar="Salón",
+            moderador=self.responsable,
+            secretario=self.responsable,
+            creada_por=self.user,
+        )
+        self.pendiente = AsuntoPendiente.objects.create(
+            titulo="Remodelación casa pastoral",
+            descripcion="Pendiente solicitar cotizaciones",
+            responsable=self.responsable,
+            estado=AsuntoPendiente.Estado.ABIERTO,
+        )
+        self.pendiente.sesiones.add(self.sesion_origen, self.sesion_actual)
+
+    def test_seguimiento_actualiza_estado_y_queda_vinculado_a_sesion(self):
+        response = self.client.post(
+            f"{reverse('actas_app:pendiente_detail', args=[self.pendiente.pk])}?sesion={self.sesion_actual.pk}",
+            {
+                "sesion": self.sesion_actual.pk,
+                "detalle": "Se solicitó cotización de mano de obra.",
+                "estado_nuevo": AsuntoPendiente.Estado.EN_PROCESO,
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("actas_app:sesion_pendientes", args=[self.sesion_actual.pk]))
+        self.pendiente.refresh_from_db()
+        self.assertEqual(self.pendiente.estado, AsuntoPendiente.Estado.EN_PROCESO)
+        seguimiento = SeguimientoAsuntoPendiente.objects.get(asunto_pendiente=self.pendiente)
+        self.assertEqual(seguimiento.sesion, self.sesion_actual)
+        self.assertEqual(seguimiento.estado_anterior, AsuntoPendiente.Estado.ABIERTO)
+        self.assertEqual(seguimiento.estado_nuevo, AsuntoPendiente.Estado.EN_PROCESO)
+        self.assertTrue(any("seguimiento guardado" in str(message).lower() for message in response.context["messages"]))
+
+    def test_no_guarda_seguimiento_vacio(self):
+        response = self.client.post(
+            reverse("actas_app:pendiente_detail", args=[self.pendiente.pk]),
+            {"sesion": self.sesion_actual.pk, "detalle": "   ", "estado_nuevo": AsuntoPendiente.Estado.RESUELTO},
+            follow=True,
+        )
+        self.pendiente.refresh_from_db()
+        self.assertEqual(self.pendiente.estado, AsuntoPendiente.Estado.ABIERTO)
+        self.assertEqual(SeguimientoAsuntoPendiente.objects.count(), 0)
+        self.assertContains(response, "El seguimiento no puede estar vacío")
+
+    def test_bloquea_seguimiento_si_acta_aprobada(self):
+        ActaSesion.objects.create(
+            sesion=self.sesion_actual,
+            numero_acta=41,
+            anio=2026,
+            contenido_final="Acta aprobada",
+            estado=ActaSesion.Estado.APROBADA,
+            redactado_por=self.user,
+        )
+        response = self.client.post(
+            f"{reverse('actas_app:pendiente_detail', args=[self.pendiente.pk])}?sesion={self.sesion_actual.pk}",
+            {"sesion": self.sesion_actual.pk, "detalle": "Seguimiento", "estado_nuevo": AsuntoPendiente.Estado.RESUELTO},
+            follow=True,
+        )
+        self.assertEqual(SeguimientoAsuntoPendiente.objects.count(), 0)
+        self.assertTrue(any("ya está aprobada" in str(message).lower() for message in response.context["messages"]))
+
+    def test_generador_acta_incluye_seguimiento_de_sesion_actual(self):
+        SeguimientoAsuntoPendiente.objects.create(
+            asunto_pendiente=self.pendiente,
+            sesion=self.sesion_actual,
+            detalle="Se informa que ya se solicitó cotización de mano de obra.",
+            estado_anterior=AsuntoPendiente.Estado.ABIERTO,
+            estado_nuevo=AsuntoPendiente.Estado.EN_PROCESO,
+            usuario=self.user,
+        )
+        self.pendiente.estado = AsuntoPendiente.Estado.EN_PROCESO
+        self.pendiente.save(update_fields=["estado"])
+
+        contenido = generar_borrador_acta(self.sesion_actual)
+
+        self.assertIn("Remodelación casa pastoral", contenido)
+        self.assertIn("Se informa que ya se solicitó cotización de mano de obra", contenido)
+        self.assertIn("Estado: En proceso", contenido)

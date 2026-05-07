@@ -155,6 +155,38 @@ def obtener_resumen_informes(sesion):
         "financieros": [informe for informe in informes if informe.tipo_informe == InformeSesion.TipoInforme.FINANCIERO],
     }
 
+
+def badge_estado_pendiente(estado):
+    return {
+        AsuntoPendiente.Estado.ABIERTO: "badge-light-warning",
+        AsuntoPendiente.Estado.EN_PROCESO: "badge-light-primary",
+        AsuntoPendiente.Estado.POSPUESTO: "badge-light-secondary",
+        AsuntoPendiente.Estado.RESUELTO: "badge-light-success",
+    }.get(estado, "badge-light-dark")
+
+
+def obtener_resumen_pendientes(sesion):
+    pendientes_sesion = sesion.pendientes_vinculados.all()
+    seguimientos_sesion = sesion.seguimientos.select_related("asunto_pendiente").order_by("-fecha")
+    return {
+        "activos_heredados": pendientes_sesion.filter(activo=True).exclude(estado=AsuntoPendiente.Estado.RESUELTO).count(),
+        "en_seguimiento": pendientes_sesion.filter(estado=AsuntoPendiente.Estado.EN_PROCESO).count(),
+        "resueltos_sesion": seguimientos_sesion.filter(estado_nuevo=AsuntoPendiente.Estado.RESUELTO).count(),
+        "cerrados": pendientes_sesion.filter(estado=AsuntoPendiente.Estado.RESUELTO).count(),
+        "seguimientos_sesion": seguimientos_sesion,
+    }
+
+
+def pendientes_tratados_en_sesion(sesion):
+    seguimientos = list(sesion.seguimientos.select_related("asunto_pendiente").order_by("fecha"))
+    con_seguimiento = {seguimiento.asunto_pendiente_id for seguimiento in seguimientos}
+    pendientes_nuevos = [
+        pendiente
+        for pendiente in sesion.pendientes_vinculados.select_related("responsable").all().order_by("titulo")
+        if pendiente.pk not in con_seguimiento
+    ]
+    return {"seguimientos": seguimientos, "pendientes_nuevos": pendientes_nuevos}
+
 def obtener_resumen_asistencia(sesion, total_miembros=None):
     asistencias = sesion.asistencias.select_related("miembro")
     total = total_miembros if total_miembros is not None else MiembroConsistorio.objects.filter(activo=True).count()
@@ -294,6 +326,8 @@ def sesion_detail(request, pk):
         "resumen_asistencia": obtener_resumen_asistencia(sesion),
         "asistencia_agrupada": obtener_asistencia_agrupada(sesion),
         "resumen_informes": obtener_resumen_informes(sesion),
+        "resumen_pendientes": obtener_resumen_pendientes(sesion),
+        "pendientes_tratados": pendientes_tratados_en_sesion(sesion),
     }
     context.update(contexto_flujo_acta(sesion, acta, request.user))
     return render(request, "actas_app/sesion_detail.html", context)
@@ -418,6 +452,8 @@ def sesion_informes(request, sesion_id):
         "acta": acta,
         "informes": informes,
         "resumen_informes": obtener_resumen_informes(sesion),
+        "resumen_pendientes": obtener_resumen_pendientes(sesion),
+        "pendientes_tratados": pendientes_tratados_en_sesion(sesion),
         "bloqueado": acta_esta_aprobada(sesion),
     }
     context.update(contexto_flujo_acta(sesion, acta, request.user))
@@ -526,32 +562,70 @@ def correspondencia_create(request, sesion_id):
 @grupo_requerido("Administrador", "Almacen")
 def pendiente_list(request):
     estado = request.GET.get("estado")
-    pendientes = AsuntoPendiente.objects.all()
+    pendientes = AsuntoPendiente.objects.select_related("responsable").prefetch_related("seguimientos", "sesiones")
     if estado:
         pendientes = pendientes.filter(estado=estado)
-    return render(request, "actas_app/pendiente_list.html", {"pendientes": pendientes, "estado": estado})
+    return render(
+        request,
+        "actas_app/pendiente_list.html",
+        {"pendientes": pendientes, "estado": estado, "badge_estado_pendiente": badge_estado_pendiente},
+    )
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def sesion_pendientes(request, sesion_id):
+    sesion = get_object_or_404(SesionConsistorial.objects.select_related("tipo_sesion"), pk=sesion_id)
+    acta = getattr(sesion, "acta", None)
+    pendientes = sesion.pendientes_vinculados.select_related("responsable").prefetch_related("seguimientos", "sesiones").order_by("estado", "titulo")
+    context = {
+        "sesion": sesion,
+        "acta": acta,
+        "pendientes": pendientes,
+        "resumen_pendientes": obtener_resumen_pendientes(sesion),
+        "pendientes_tratados": pendientes_tratados_en_sesion(sesion),
+        "bloqueado": acta_esta_aprobada(sesion),
+    }
+    context.update(contexto_flujo_acta(sesion, acta, request.user))
+    return render(request, "actas_app/sesion_pendientes.html", context)
 
 
 @login_required
 @grupo_requerido("Administrador", "Almacen")
 def pendiente_create(request):
+    sesion_id = request.POST.get("sesion") or request.GET.get("sesion")
+    sesion = get_object_or_404(SesionConsistorial, pk=sesion_id) if sesion_id else None
+    if sesion and acta_esta_aprobada(sesion):
+        messages.error(request, "El acta ya está aprobada. No se pueden agregar puntos pendientes.")
+        return redirect("actas_app:sesion_pendientes", sesion_id=sesion.pk)
+
     if request.method == "POST":
         form = AsuntoPendienteForm(request.POST)
         if form.is_valid():
             pendiente = form.save()
+            if sesion:
+                pendiente.sesiones.add(sesion)
             registrar_bitacora(request.user, pendiente.titulo, "creación de pendiente", pendiente.descripcion[:120])
             messages.success(request, "Pendiente creado correctamente.")
+            if sesion:
+                return redirect("actas_app:sesion_pendientes", sesion_id=sesion.pk)
             return redirect("actas_app:pendiente_detail", pk=pendiente.pk)
     else:
         form = AsuntoPendienteForm()
-    return render(request, "actas_app/simple_form.html", {"title": "Crear asunto pendiente", "form": form})
+    return render(request, "actas_app/pendiente_form.html", {"title": "Crear asunto pendiente", "form": form, "sesion": sesion})
 
 
 @login_required
 @grupo_requerido("Administrador", "Almacen")
 def pendiente_detail(request, pk):
-    pendiente = get_object_or_404(AsuntoPendiente, pk=pk)
+    pendiente = get_object_or_404(AsuntoPendiente.objects.select_related("responsable").prefetch_related("seguimientos", "sesiones"), pk=pk)
+    sesion_id = request.POST.get("sesion") or request.GET.get("sesion")
+    sesion_actual = get_object_or_404(SesionConsistorial, pk=sesion_id) if sesion_id else None
+
     if request.method == "POST":
+        if sesion_actual and acta_esta_aprobada(sesion_actual):
+            messages.error(request, "El acta ya está aprobada. No se pueden registrar seguimientos para esta sesión.")
+            return redirect("actas_app:pendiente_detail", pk=pk)
         form = SeguimientoAsuntoPendienteForm(request.POST)
         if form.is_valid():
             seguimiento = form.save(commit=False)
@@ -559,18 +633,30 @@ def pendiente_detail(request, pk):
             seguimiento.estado_anterior = pendiente.estado
             seguimiento.usuario = request.user
             seguimiento.save()
+            if seguimiento.sesion_id:
+                pendiente.sesiones.add(seguimiento.sesion)
             pendiente.estado = seguimiento.estado_nuevo
             pendiente.save(update_fields=["estado", "actualizado_en"])
             registrar_bitacora(request.user, pendiente.titulo, "actualización de pendiente", seguimiento.detalle)
-            messages.success(request, "Seguimiento registrado.")
+            messages.success(request, "Seguimiento guardado correctamente.")
+            if seguimiento.sesion_id:
+                return redirect("actas_app:sesion_pendientes", sesion_id=seguimiento.sesion_id)
             return redirect("actas_app:pendiente_detail", pk=pk)
+        messages.error(request, "No se pudo guardar el seguimiento. Revisa los campos marcados.")
     else:
-        form = SeguimientoAsuntoPendienteForm(initial={"estado_nuevo": pendiente.estado})
+        form = SeguimientoAsuntoPendienteForm(initial={"estado_nuevo": pendiente.estado, "sesion": sesion_actual})
 
     return render(
         request,
         "actas_app/pendiente_detail.html",
-        {"pendiente": pendiente, "form": form, "seguimientos": pendiente.seguimientos.all()},
+        {
+            "pendiente": pendiente,
+            "form": form,
+            "seguimientos": pendiente.seguimientos.select_related("sesion", "usuario").all(),
+            "sesion_actual": sesion_actual,
+            "badge_class": badge_estado_pendiente(pendiente.estado),
+            "bloqueado": bool(sesion_actual and acta_esta_aprobada(sesion_actual)),
+        },
     )
 
 

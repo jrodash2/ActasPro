@@ -24,6 +24,20 @@ def _formatear_informe(informe):
     return f"{informe.area}. {informe.expositor}: {informe.resumen}"
 
 
+def _formatear_pendientes(sesion):
+    seguimientos = list(sesion.seguimientos.select_related("asunto_pendiente").order_by("fecha"))
+    lineas = [
+        f"{seguimiento.asunto_pendiente.titulo}. {seguimiento.detalle} Estado: {seguimiento.get_estado_nuevo_display()}."
+        for seguimiento in seguimientos
+    ]
+    pendientes_con_seguimiento = {seguimiento.asunto_pendiente_id for seguimiento in seguimientos}
+    for pendiente in sesion.pendientes_vinculados.filter(activo=True).order_by("titulo"):
+        if pendiente.pk in pendientes_con_seguimiento:
+            continue
+        lineas.append(f"{pendiente.titulo}. {pendiente.descripcion} Estado: {pendiente.get_estado_display()}.")
+    return lineas
+
+
 def generar_borrador_acta(sesion):
     asistencias = sesion.asistencias.select_related("miembro").order_by("miembro__apellidos", "miembro__nombres")
     asistentes = [
@@ -51,7 +65,7 @@ def generar_borrador_acta(sesion):
         )
     informes = [_formatear_informe(i) for i in sesion.informes.all().order_by("area")]
     correspondencias = [f"{c.remitente} - {c.asunto}. Decisión: {c.decision or 'Pendiente.'}" for c in sesion.correspondencias.all()]
-    pendientes = [f"{p.titulo} ({p.get_estado_display()})" for p in sesion.pendientes_vinculados.filter(activo=True)]
+    pendientes = _formatear_pendientes(sesion)
     nuevos = [f"{n.titulo}: {n.decision or 'Sin decisión registrada.'}" for n in sesion.asuntos_nuevos.all()]
     acuerdos = [f"Acuerdo {a.numero}/{a.anio}: {a.texto}" for a in sesion.acuerdos.all()]
 

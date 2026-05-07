@@ -250,14 +250,24 @@ class AsuntoPendienteForm(forms.ModelForm):
 
 
 class SeguimientoAsuntoPendienteForm(forms.ModelForm):
+    detalle = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 4, "placeholder": "Describe el seguimiento tratado en esta sesión"}),
+    )
+
     class Meta:
         model = SeguimientoAsuntoPendiente
         fields = ["sesion", "detalle", "estado_nuevo"]
         widgets = {
             "sesion": forms.Select(attrs={"class": "form-control"}),
-            "detalle": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "estado_nuevo": forms.Select(attrs={"class": "form-control"}),
         }
+
+    def clean_detalle(self):
+        detalle = (self.cleaned_data.get("detalle") or "").strip()
+        if not detalle:
+            raise ValidationError("El seguimiento no puede estar vacío.")
+        return detalle
 
 
 class AsuntoNuevoSesionForm(forms.ModelForm):

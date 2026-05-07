@@ -22,6 +22,7 @@ urlpatterns = [
     path("sesiones/<int:sesion_id>/acta/generar/", views.acta_generar, name="acta_generar"),
     path("sesiones/<int:sesion_id>/acta/estado/", views.acta_cambiar_estado, name="acta_cambiar_estado"),
     path("sesiones/<int:sesion_id>/acta/word/", views.acta_word_download, name="acta_word_download"),
+    path("sesiones/<int:sesion_id>/pendientes/", views.sesion_pendientes, name="sesion_pendientes"),
     path("pendientes/", views.pendiente_list, name="pendiente_list"),
     path("pendientes/nuevo/", views.pendiente_create, name="pendiente_create"),
     path("pendientes/<int:pk>/", views.pendiente_detail, name="pendiente_detail"),

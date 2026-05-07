@@ -1,8 +1,41 @@
 {% extends 'almacen/base.html' %}
 {% block content %}
-<div class="page-body"><div class="container-fluid"><h4>{{ pendiente.titulo }}</h4>
-<div class="card"><div class="card-body"><p>{{ pendiente.descripcion }}</p><p><strong>Estado:</strong> {{ pendiente.get_estado_display }}</p>
-<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Registrar seguimiento</button></form>
-<hr><h6>Seguimientos</h6><ul>{% for s in seguimientos %}<li>{{ s.fecha }} - {{ s.detalle }} ({{ s.estado_anterior }} → {{ s.estado_nuevo }})</li>{% empty %}<li>Sin seguimientos.</li>{% endfor %}</ul></div></div>
+<div class="page-body"><div class="container-fluid">
+  {% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}{% endif %}
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+      <h4>{{ pendiente.titulo }}</h4>
+      <p class="mb-0">Estado actual: <span class="badge {{ badge_class }}">{{ pendiente.get_estado_display }}</span></p>
+    </div>
+    {% if sesion_actual %}<a class="btn btn-light" href="{% url 'actas_app:sesion_pendientes' sesion_actual.pk %}">Volver a la sesión</a>{% else %}<a class="btn btn-light" href="{% url 'actas_app:pendiente_list' %}">Volver al listado</a>{% endif %}
+  </div>
+
+  {% if bloqueado %}<div class="alert alert-warning">El acta de esta sesión ya está aprobada. No se pueden agregar seguimientos.</div>{% endif %}
+
+  <div class="card mb-3"><div class="card-body">
+    <h6>Información original</h6>
+    <p>{{ pendiente.descripcion }}</p>
+    <p><strong>Responsable:</strong> {{ pendiente.responsable }} | <strong>Prioridad:</strong> {{ pendiente.get_prioridad_display }} | <strong>Activo:</strong> {% if pendiente.activo %}Sí{% else %}No{% endif %}</p>
+    <p><strong>Sesiones vinculadas:</strong> {% for sesion in pendiente.sesiones.all %}{{ sesion.numero }}/{{ sesion.anio }}{% if not forloop.last %}, {% endif %}{% empty %}Sin sesiones vinculadas{% endfor %}</p>
+  </div></div>
+
+  <div class="card mb-3"><div class="card-body">
+    <h6>Agregar seguimiento</h6>
+    <p class="text-muted">El cambio de estado se guarda junto con el seguimiento y queda vinculado a la sesión seleccionada.</p>
+    {% if form.errors %}<div class="alert alert-danger">No se pudo guardar el seguimiento. {{ form.errors }}</div>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button class="btn btn-primary" type="submit" {% if bloqueado %}disabled{% endif %}>Guardar seguimiento</button>
+    </form>
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    <h6>Historial de seguimientos</h6>
+    <div class="table-responsive"><table class="table table-striped">
+      <thead><tr><th>Fecha</th><th>Sesión</th><th>Descripción</th><th>Estado anterior</th><th>Estado resultante</th><th>Usuario</th></tr></thead>
+      <tbody>{% for s in seguimientos %}<tr><td>{{ s.fecha }}</td><td>{% if s.sesion %}{{ s.sesion.numero }}/{{ s.sesion.anio }}{% else %}-{% endif %}</td><td>{{ s.detalle }}</td><td>{{ s.get_estado_anterior_display }}</td><td>{{ s.get_estado_nuevo_display }}</td><td>{{ s.usuario }}</td></tr>{% empty %}<tr><td colspan="6">Sin seguimientos.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div></div>
 </div></div>
 {% endblock %}
