@@ -1,21 +1,30 @@
 {% extends 'almacen/base.html' %}
 {% block content %}
 <div class="page-body"><div class="container-fluid">
+  {% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}{% endif %}
   <div class="d-flex justify-content-between mb-3">
-    <h4>Actas</h4>
+    <div><h4>Actas</h4><p class="mb-0 text-muted">Usa las acciones para generar, revisar, aprobar y descargar sin adivinar dónde cambiar el estado.</p></div>
     <a class="btn btn-outline-primary" href="{% url 'actas_app:sesion_list' %}">Ir a sesiones</a>
   </div>
   <div class="card"><div class="card-body">
     <table class="table table-striped">
-      <thead><tr><th>No. Acta</th><th>Sesión</th><th>Estado</th><th>Versión</th><th>Acción</th></tr></thead>
+      <thead><tr><th>No. Acta</th><th>Sesión</th><th>Estado</th><th>Versión</th><th>Acciones</th></tr></thead>
       <tbody>
         {% for acta in actas %}
           <tr>
             <td>{{ acta.numero_acta }}/{{ acta.anio }}</td>
             <td>{{ acta.sesion }}</td>
-            <td><span class="badge badge-light-info">{{ acta.get_estado_display }}</span></td>
+            <td><span class="badge {% if acta.estado == 'borrador' %}badge-light-secondary{% elif acta.estado == 'en_revision' %}badge-light-warning{% elif acta.estado == 'aprobada' %}badge-light-success{% else %}badge-light-dark{% endif %}">{{ acta.get_estado_display }}</span></td>
             <td>{{ acta.version }}</td>
-            <td><a class="btn btn-sm btn-primary" href="{% url 'actas_app:acta_edit' acta.sesion_id %}">Ver / Editar</a></td>
+            <td class="d-flex flex-wrap gap-1">
+              <a class="btn btn-sm btn-outline-primary" href="{% url 'actas_app:sesion_detail' acta.sesion_id %}">Revisar acta</a>
+              <a class="btn btn-sm btn-outline-secondary" href="{% url 'actas_app:sesion_agenda' acta.sesion_id %}">Ver agenda</a>
+              <a class="btn btn-sm btn-outline-secondary" href="{% url 'actas_app:acta_generar' acta.sesion_id %}">Generar acta</a>
+              {% if acta.estado == 'en_revision' %}
+                <form method="post" action="{% url 'actas_app:acta_cambiar_estado' acta.sesion_id %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-success" name="accion" value="aprobar" type="submit">Aprobar acta</button></form>
+              {% endif %}
+              <a class="btn btn-sm btn-outline-success" href="{% url 'actas_app:acta_word_download' acta.sesion_id %}">Descargar Word</a>
+            </td>
           </tr>
         {% empty %}
           <tr><td colspan="5">No hay actas registradas.</td></tr>

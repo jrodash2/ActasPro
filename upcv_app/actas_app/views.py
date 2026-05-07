@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.db.models import Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -48,6 +49,67 @@ from .services.acta_generator import generar_borrador_acta
 from .services.docx_export import build_acta_docx
 
 
+
+def usuario_puede_aprobar_actas(usuario):
+    return usuario.is_superuser or usuario.groups.filter(name="Administrador").exists()
+
+
+def pendientes_para_aprobar_acta(sesion, acta=None):
+    pendientes = []
+    if not acta or not acta.numero_acta:
+        pendientes.append("número de acta")
+    if not sesion.fecha:
+        pendientes.append("fecha de sesión")
+    if not sesion.tipo_sesion_id:
+        pendientes.append("tipo de sesión")
+    if not sesion.asistencias.filter(asistencia=AsistenciaSesion.Asistencia.PRESENTE).exists():
+        pendientes.append("asistentes o miembros presentes")
+    if not sesion.puntos_agenda.filter(activo=True).exists():
+        pendientes.append("agenda o puntos tratados")
+    if not acta or not (acta.contenido_final or "").strip():
+        pendientes.append("contenido del acta final")
+    return pendientes
+
+
+def badge_estado_acta(estado):
+    return {
+        ActaSesion.Estado.BORRADOR: "badge-light-secondary",
+        ActaSesion.Estado.EN_REVISION: "badge-light-warning",
+        ActaSesion.Estado.APROBADA: "badge-light-success",
+    }.get(estado, "badge-light-dark")
+
+
+def progreso_estado_acta(acta):
+    flujo = [
+        (ActaSesion.Estado.BORRADOR, "Borrador"),
+        (ActaSesion.Estado.EN_REVISION, "En revisión"),
+        (ActaSesion.Estado.APROBADA, "Aprobada"),
+        ("cerrada", "Cerrada"),
+    ]
+    estado_actual = acta.estado if acta else ActaSesion.Estado.BORRADOR
+    indice_actual = next((i for i, (valor, _) in enumerate(flujo) if valor == estado_actual), 0)
+    return [
+        {"valor": valor, "etiqueta": etiqueta, "activo": valor == estado_actual, "completado": i <= indice_actual}
+        for i, (valor, etiqueta) in enumerate(flujo)
+    ]
+
+
+def contexto_flujo_acta(sesion, acta=None, usuario=None):
+    estado = acta.estado if acta else ActaSesion.Estado.BORRADOR
+    pendientes = pendientes_para_aprobar_acta(sesion, acta)
+    acciones = {
+        ActaSesion.Estado.BORRADOR: "Enviar a revisión",
+        ActaSesion.Estado.EN_REVISION: "Aprobar acta",
+        ActaSesion.Estado.APROBADA: "Descargar el acta y cerrar si aplica",
+    }
+    return {
+        "pendientes_aprobacion": pendientes,
+        "estado_badge_class": badge_estado_acta(estado),
+        "flujo_estados": progreso_estado_acta(acta),
+        "accion_sugerida": acciones.get(estado, "Revisar estado del acta"),
+        "puede_aprobar_acta": usuario_puede_aprobar_actas(usuario) if usuario else False,
+    }
+
 def registrar_bitacora(usuario, referencia, accion, detalle=""):
     BitacoraSesion.objects.create(usuario=usuario, referencia=referencia, accion=accion, detalle=detalle)
 
@@ -73,7 +135,7 @@ def dashboard(request):
 @login_required
 @grupo_requerido("Administrador", "Almacen")
 def sesion_list(request):
-    sesiones = SesionConsistorial.objects.select_related("tipo_sesion").order_by("-anio", "-numero")
+    sesiones = SesionConsistorial.objects.select_related("tipo_sesion", "acta").order_by("-anio", "-numero")
     return render(request, "actas_app/sesion_list.html", {"sesiones": sesiones})
 
 
@@ -138,6 +200,7 @@ def sesion_edit(request, pk):
 @grupo_requerido("Administrador", "Almacen")
 def sesion_detail(request, pk):
     sesion = get_object_or_404(SesionConsistorial.objects.select_related("tipo_sesion", "moderador", "secretario"), pk=pk)
+    acta = getattr(sesion, "acta", None)
     context = {
         "sesion": sesion,
         "informes": sesion.informes.all(),
@@ -145,8 +208,9 @@ def sesion_detail(request, pk):
         "asuntos_nuevos": sesion.asuntos_nuevos.all(),
         "acuerdos": sesion.acuerdos.all(),
         "pendientes": sesion.pendientes_vinculados.all(),
-        "acta": getattr(sesion, "acta", None),
+        "acta": acta,
     }
+    context.update(contexto_flujo_acta(sesion, acta, request.user))
     return render(request, "actas_app/sesion_detail.html", context)
 
 
@@ -407,32 +471,112 @@ def acta_edit(request, sesion_id):
         registrar_bitacora(request.user, str(sesion), "creación de acta", "Acta inicial creada")
 
     if request.method == "POST":
+        if acta.estado == ActaSesion.Estado.APROBADA:
+            messages.error(request, "El acta ya está aprobada y la edición directa está bloqueada para proteger su contenido.")
+            return redirect("actas_app:sesion_detail", pk=sesion.pk)
+
         form = ActaSesionForm(request.POST, instance=acta)
         if form.is_valid():
             acta = form.save(commit=False)
-            contenido_final = (acta.contenido_final or "").strip()
-            if acta.estado == ActaSesion.Estado.APROBADA and not contenido_final:
-                messages.error(request, "Para aprobar el acta debes completar el contenido final.")
-                return render(request, "actas_app/acta_edit.html", {"sesion": sesion, "acta": acta, "form": form})
+            estado_solicitado = acta.estado
+            estado_origen = ActaSesion.objects.filter(pk=acta.pk).values_list("estado", flat=True).first()
+            if estado_solicitado == ActaSesion.Estado.APROBADA:
+                acta.estado = estado_origen
+                acta.version += 1
+                acta.save()
+                acta.estado = ActaSesion.Estado.APROBADA
+                return aprobar_acta(request, sesion, acta, estado_origen=estado_origen)
             if acta.estado == ActaSesion.Estado.EN_REVISION:
                 acta.revisado_por = request.user
-            if acta.estado == ActaSesion.Estado.APROBADA:
-                acta.aprobado_por = request.user
-                acta.fecha_aprobacion = timezone.now()
-                sesion.estado = SesionConsistorial.Estado.APROBADA
-                sesion.aprobada_por = request.user
-                sesion.fecha_aprobacion = timezone.now()
-                sesion.save(update_fields=["estado", "aprobada_por", "fecha_aprobacion", "actualizado_en"])
+                sesion.estado = SesionConsistorial.Estado.EN_REVISION
+                sesion.revisada_por = request.user
+                sesion.save(update_fields=["estado", "revisada_por", "actualizado_en"])
             acta.version += 1
             acta.save()
-            registrar_bitacora(request.user, str(acta), "edición de acta", f"Estado: {acta.estado}")
-            messages.success(request, "Acta actualizada.")
+            registrar_bitacora(request.user, str(acta), "edición de acta", f"Estado guardado: {acta.estado}")
+            messages.success(request, f"Acta guardada correctamente en estado {acta.get_estado_display()}.")
             return redirect("actas_app:sesion_detail", pk=sesion.pk)
         messages.error(request, f"No se pudo guardar el acta. {form.errors.as_text()}")
     else:
         form = ActaSesionForm(instance=acta)
 
-    return render(request, "actas_app/acta_edit.html", {"sesion": sesion, "acta": acta, "form": form})
+    context = {"sesion": sesion, "acta": acta, "form": form}
+    context.update(contexto_flujo_acta(sesion, acta, request.user))
+    return render(request, "actas_app/acta_edit.html", context)
+
+
+@login_required
+@grupo_requerido("Administrador", "Almacen")
+def acta_cambiar_estado(request, sesion_id):
+    sesion = get_object_or_404(SesionConsistorial, pk=sesion_id)
+    acta, _ = ActaSesion.objects.get_or_create(
+        sesion=sesion,
+        defaults={
+            "numero_acta": ActaSesion.siguiente_numero(sesion.anio),
+            "anio": sesion.anio,
+            "redactado_por": request.user,
+            "contenido_borrador": "",
+        },
+    )
+    if request.method != "POST":
+        messages.error(request, "El cambio de estado debe realizarse desde los botones de acción del acta.")
+        return redirect("actas_app:sesion_detail", pk=sesion.pk)
+
+    accion = request.POST.get("accion")
+    if accion == "enviar_revision":
+        if acta.estado != ActaSesion.Estado.BORRADOR:
+            messages.error(request, "Solo las actas en borrador pueden enviarse a revisión.")
+            return redirect("actas_app:sesion_detail", pk=sesion.pk)
+        acta.estado = ActaSesion.Estado.EN_REVISION
+        acta.revisado_por = request.user
+        acta.save(update_fields=["estado", "revisado_por", "actualizado_en"])
+        sesion.estado = SesionConsistorial.Estado.EN_REVISION
+        sesion.revisada_por = request.user
+        sesion.save(update_fields=["estado", "revisada_por", "actualizado_en"])
+        registrar_bitacora(request.user, str(acta), "cambio de estado", "Acta enviada a revisión")
+        messages.success(request, "Acta enviada a revisión correctamente.")
+        return redirect("actas_app:sesion_detail", pk=sesion.pk)
+
+    if accion == "aprobar":
+        return aprobar_acta(request, sesion, acta)
+
+    messages.error(request, "Acción de estado no reconocida para el acta.")
+    return redirect("actas_app:sesion_detail", pk=sesion.pk)
+
+
+def aprobar_acta(request, sesion, acta, estado_origen=None):
+    if not usuario_puede_aprobar_actas(request.user):
+        messages.error(request, "No tienes permiso para aprobar actas. Solicita la aprobación a un usuario Administrador.")
+        return redirect("actas_app:sesion_detail", pk=sesion.pk)
+
+    estado_actual = estado_origen or acta.estado
+    if estado_actual != ActaSesion.Estado.EN_REVISION:
+        messages.error(request, "Solo se pueden aprobar actas que estén en estado En revisión.")
+        return redirect("actas_app:sesion_detail", pk=sesion.pk)
+
+    pendientes = pendientes_para_aprobar_acta(sesion, acta)
+    if pendientes:
+        messages.error(request, "No se puede aprobar el acta. Falta: " + ", ".join(pendientes) + ".")
+        return redirect("actas_app:sesion_detail", pk=sesion.pk)
+
+    ahora = timezone.now()
+    acta.estado = ActaSesion.Estado.APROBADA
+    acta.aprobado_por = request.user
+    acta.fecha_aprobacion = ahora
+    # Guardado explícito del valor correcto: acta.estado = "aprobada" y acta.save().
+    try:
+        acta.save(update_fields=["estado", "aprobado_por", "fecha_aprobacion", "actualizado_en"])
+    except ValidationError as exc:
+        messages.error(request, f"No se pudo aprobar el acta: {exc}")
+        return redirect("actas_app:sesion_detail", pk=sesion.pk)
+
+    sesion.estado = SesionConsistorial.Estado.APROBADA
+    sesion.aprobada_por = request.user
+    sesion.fecha_aprobacion = ahora
+    sesion.save(update_fields=["estado", "aprobada_por", "fecha_aprobacion", "actualizado_en"])
+    registrar_bitacora(request.user, str(acta), "cambio de estado", "Acta aprobada")
+    messages.success(request, "Acta aprobada y guardada correctamente.")
+    return redirect("actas_app:sesion_detail", pk=sesion.pk)
 
 
 @login_required
