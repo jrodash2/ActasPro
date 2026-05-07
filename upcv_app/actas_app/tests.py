@@ -1,8 +1,11 @@
+from datetime import date
+
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
 
 from .models import ActaSesion, AsistenciaSesion, MiembroConsistorio, PuntoAgendaSesion, SesionConsistorial, TipoSesion
+from .services.acta_generator import generar_borrador_acta
 
 
 class ActaWordDownloadTests(TestCase):
@@ -176,3 +179,132 @@ class ActaEstadoFlowTests(TestCase):
         self.acta.refresh_from_db()
         self.assertEqual(self.acta.estado, ActaSesion.Estado.EN_REVISION)
         self.assertTrue(any("no tienes permiso" in str(message).lower() for message in response.context["messages"]))
+
+
+class AsistenciaSesionFlowTests(TestCase):
+    def setUp(self):
+        self.group, _ = Group.objects.get_or_create(name="Almacen")
+        self.user = User.objects.create_user(username="secretario", password="123456")
+        self.user.groups.add(self.group)
+        self.client.login(username="secretario", password="123456")
+
+        self.tipo, _ = TipoSesion.objects.get_or_create(nombre="Ordinaria")
+        self.moderador = MiembroConsistorio.objects.create(
+            nombres="Carlos", apellidos="Arias", cargo="Moderador", tipo_miembro=MiembroConsistorio.TipoMiembro.ANCIANO
+        )
+        self.secretario = MiembroConsistorio.objects.create(
+            nombres="Beatriz", apellidos="Diaz", cargo="Secretaria", tipo_miembro=MiembroConsistorio.TipoMiembro.DIACONO
+        )
+        self.inactivo = MiembroConsistorio.objects.create(
+            nombres="Inactivo", apellidos="Prueba", cargo="Visitante", activo=False
+        )
+        self.sesion = SesionConsistorial.objects.create(
+            numero=20,
+            anio=2026,
+            tipo_sesion=self.tipo,
+            fecha=date(2026, 5, 2),
+            lugar="Sala principal",
+            moderador=self.moderador,
+            secretario=self.secretario,
+            quorum_requerido=1,
+            creada_por=self.user,
+        )
+
+    def test_guarda_y_actualiza_asistencia_sin_duplicar(self):
+        url = reverse("actas_app:sesion_asistencia", args=[self.sesion.pk])
+        response = self.client.post(
+            url,
+            {
+                f"asistencia_{self.moderador.pk}": AsistenciaSesion.Asistencia.PRESENTE,
+                f"observaciones_{self.moderador.pk}": "Llegó a tiempo",
+                f"asistencia_{self.secretario.pk}": AsistenciaSesion.Asistencia.EXCUSADO,
+                f"observaciones_{self.secretario.pk}": "Presentó excusa",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("actas_app:sesion_detail", args=[self.sesion.pk]))
+        self.assertEqual(AsistenciaSesion.objects.filter(sesion=self.sesion).count(), 2)
+        self.sesion.refresh_from_db()
+        self.assertEqual(self.sesion.quorum_alcanzado, 1)
+        self.assertTrue(any("asistencia guardada" in str(message).lower() for message in response.context["messages"]))
+
+        response = self.client.post(
+            url,
+            {
+                f"asistencia_{self.moderador.pk}": AsistenciaSesion.Asistencia.AUSENTE,
+                f"observaciones_{self.moderador.pk}": "No asistió",
+                f"asistencia_{self.secretario.pk}": AsistenciaSesion.Asistencia.PRESENTE,
+                f"observaciones_{self.secretario.pk}": "",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(AsistenciaSesion.objects.filter(sesion=self.sesion).count(), 2)
+        self.sesion.refresh_from_db()
+        self.assertEqual(self.sesion.quorum_alcanzado, 1)
+        self.assertEqual(
+            AsistenciaSesion.objects.get(sesion=self.sesion, miembro=self.moderador).asistencia,
+            AsistenciaSesion.Asistencia.AUSENTE,
+        )
+
+    def test_rechaza_miembros_sin_marcar_o_inactivos(self):
+        url = reverse("actas_app:sesion_asistencia", args=[self.sesion.pk])
+        response = self.client.post(
+            url,
+            {f"asistencia_{self.moderador.pk}": AsistenciaSesion.Asistencia.PRESENTE},
+            follow=True,
+        )
+        self.assertEqual(AsistenciaSesion.objects.filter(sesion=self.sesion).count(), 0)
+        self.assertTrue(any("miembros sin marcar" in str(message).lower() for message in response.context["messages"]))
+
+        response = self.client.post(
+            url,
+            {
+                f"asistencia_{self.moderador.pk}": AsistenciaSesion.Asistencia.PRESENTE,
+                f"asistencia_{self.secretario.pk}": AsistenciaSesion.Asistencia.AUSENTE,
+                f"asistencia_{self.inactivo.pk}": AsistenciaSesion.Asistencia.PRESENTE,
+            },
+            follow=True,
+        )
+        self.assertEqual(AsistenciaSesion.objects.filter(sesion=self.sesion).count(), 0)
+        self.assertTrue(any("inválidos o inactivos" in str(message).lower() for message in response.context["messages"]))
+
+    def test_bloquea_asistencia_si_acta_aprobada(self):
+        ActaSesion.objects.create(
+            sesion=self.sesion,
+            numero_acta=20,
+            anio=2026,
+            contenido_final="Acta final",
+            estado=ActaSesion.Estado.APROBADA,
+            redactado_por=self.user,
+        )
+        response = self.client.post(
+            reverse("actas_app:sesion_asistencia", args=[self.sesion.pk]),
+            {
+                f"asistencia_{self.moderador.pk}": AsistenciaSesion.Asistencia.PRESENTE,
+                f"asistencia_{self.secretario.pk}": AsistenciaSesion.Asistencia.PRESENTE,
+            },
+            follow=True,
+        )
+        self.assertEqual(AsistenciaSesion.objects.filter(sesion=self.sesion).count(), 0)
+        self.assertTrue(any("ya está aprobada" in str(message).lower() for message in response.context["messages"]))
+
+    def test_generador_acta_refleja_presentes_ausentes_y_excusados(self):
+        AsistenciaSesion.objects.create(
+            sesion=self.sesion,
+            miembro=self.moderador,
+            asistencia=AsistenciaSesion.Asistencia.PRESENTE,
+        )
+        AsistenciaSesion.objects.create(
+            sesion=self.sesion,
+            miembro=self.secretario,
+            asistencia=AsistenciaSesion.Asistencia.EXCUSADO,
+        )
+
+        contenido = generar_borrador_acta(self.sesion)
+
+        self.assertIn("Estando presentes los siguientes hermanos", contenido)
+        self.assertIn(self.moderador.nombre_completo, contenido)
+        self.assertIn("Excusados:", contenido)
+        self.assertIn(self.secretario.nombre_completo, contenido)

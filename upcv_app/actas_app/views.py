@@ -14,7 +14,6 @@ from .forms import (
     AgendaPlantillaForm,
     AgendaSesionFormset,
     AreaInformeCatalogoForm,
-    AsistenciaSesionFormset,
     AsuntoNuevoSesionForm,
     AsuntoPendienteForm,
     CorrespondenciaSesionForm,
@@ -109,6 +108,44 @@ def contexto_flujo_acta(sesion, acta=None, usuario=None):
         "accion_sugerida": acciones.get(estado, "Revisar estado del acta"),
         "puede_aprobar_acta": usuario_puede_aprobar_actas(usuario) if usuario else False,
     }
+
+
+def obtener_resumen_asistencia(sesion, total_miembros=None):
+    asistencias = sesion.asistencias.select_related("miembro")
+    total = total_miembros if total_miembros is not None else MiembroConsistorio.objects.filter(activo=True).count()
+    presentes = asistencias.filter(asistencia=AsistenciaSesion.Asistencia.PRESENTE).count()
+    ausentes = asistencias.filter(asistencia=AsistenciaSesion.Asistencia.AUSENTE).count()
+    excusados = asistencias.filter(asistencia=AsistenciaSesion.Asistencia.EXCUSADO).count()
+    return {
+        "total_miembros": total,
+        "presentes": presentes,
+        "ausentes": ausentes,
+        "excusados": excusados,
+        "quorum_requerido": sesion.quorum_requerido,
+        "quorum_alcanzado": presentes,
+        "cumple_quorum": presentes >= sesion.quorum_requerido,
+    }
+
+
+def obtener_asistencia_agrupada(sesion):
+    asistencias = sesion.asistencias.select_related("miembro").order_by("miembro__apellidos", "miembro__nombres")
+    return {
+        "presentes": asistencias.filter(asistencia=AsistenciaSesion.Asistencia.PRESENTE),
+        "ausentes": asistencias.filter(asistencia=AsistenciaSesion.Asistencia.AUSENTE),
+        "excusados": asistencias.filter(asistencia=AsistenciaSesion.Asistencia.EXCUSADO),
+    }
+
+
+def construir_filas_asistencia(sesion, miembros_activos):
+    asistencias = {asistencia.miembro_id: asistencia for asistencia in sesion.asistencias.select_related("miembro")}
+    return [
+        {
+            "miembro": miembro,
+            "asistencia": asistencias.get(miembro.pk).asistencia if miembro.pk in asistencias else "",
+            "observaciones": asistencias.get(miembro.pk).observaciones if miembro.pk in asistencias else "",
+        }
+        for miembro in miembros_activos
+    ]
 
 def registrar_bitacora(usuario, referencia, accion, detalle=""):
     BitacoraSesion.objects.create(usuario=usuario, referencia=referencia, accion=accion, detalle=detalle)
@@ -209,6 +246,8 @@ def sesion_detail(request, pk):
         "acuerdos": sesion.acuerdos.all(),
         "pendientes": sesion.pendientes_vinculados.all(),
         "acta": acta,
+        "resumen_asistencia": obtener_resumen_asistencia(sesion),
+        "asistencia_agrupada": obtener_asistencia_agrupada(sesion),
     }
     context.update(contexto_flujo_acta(sesion, acta, request.user))
     return render(request, "actas_app/sesion_detail.html", context)
@@ -233,21 +272,93 @@ def sesion_agenda(request, pk):
 @login_required
 @grupo_requerido("Administrador", "Almacen")
 def sesion_asistencia(request, pk):
-    sesion = get_object_or_404(SesionConsistorial, pk=pk)
+    sesion = get_object_or_404(
+        SesionConsistorial.objects.select_related("tipo_sesion"),
+        pk=pk,
+    )
+    acta = getattr(sesion, "acta", None)
+    miembros_activos = list(MiembroConsistorio.objects.filter(activo=True).order_by("apellidos", "nombres"))
+    estados_validos = {choice[0] for choice in AsistenciaSesion.Asistencia.choices}
+
+    if acta and acta.estado == ActaSesion.Estado.APROBADA and request.method == "POST":
+        messages.error(request, "El acta ya está aprobada. La asistencia no puede modificarse.")
+        return redirect("actas_app:sesion_detail", pk=sesion.pk)
+
     if request.method == "POST":
-        formset = AsistenciaSesionFormset(request.POST, instance=sesion)
-        if formset.is_valid():
-            formset.save()
+        if not miembros_activos:
+            messages.error(
+                request,
+                "No hay miembros activos configurados para tomar asistencia. Configure primero los miembros del consistorio.",
+            )
+            return redirect("actas_app:sesion_asistencia", pk=sesion.pk)
+
+        if request.POST.get("accion") == "limpiar":
+            AsistenciaSesion.objects.filter(sesion=sesion, miembro__in=miembros_activos).delete()
             sesion.recalcular_quorum()
-            registrar_bitacora(request.user, str(sesion), "registro de asistencia", "Se actualizó asistencia y quórum")
-            messages.success(request, "Asistencia actualizada y quórum recalculado.")
-            return redirect("actas_app:sesion_detail", pk=sesion.pk)
-    else:
-        if not sesion.asistencias.exists():
-            for miembro in MiembroConsistorio.objects.filter(activo=True):
-                AsistenciaSesion.objects.get_or_create(sesion=sesion, miembro=miembro)
-        formset = AsistenciaSesionFormset(instance=sesion)
-    return render(request, "actas_app/sesion_asistencia.html", {"sesion": sesion, "formset": formset})
+            registrar_bitacora(request.user, str(sesion), "limpieza de asistencia", "Se limpió la asistencia registrada")
+            messages.warning(request, "Asistencia limpiada. Marca cada miembro antes de continuar.")
+            return redirect("actas_app:sesion_asistencia", pk=sesion.pk)
+
+        ids_validos = {miembro.pk for miembro in miembros_activos}
+        ids_enviados = set()
+        for key in request.POST:
+            if key.startswith("asistencia_"):
+                try:
+                    ids_enviados.add(int(key.removeprefix("asistencia_")))
+                except ValueError:
+                    messages.error(request, "La asistencia contiene un identificador de miembro inválido.")
+                    return redirect("actas_app:sesion_asistencia", pk=sesion.pk)
+        if not ids_enviados.issubset(ids_validos):
+            messages.error(request, "La asistencia contiene IDs de miembros inválidos o inactivos.")
+            return redirect("actas_app:sesion_asistencia", pk=sesion.pk)
+
+        faltantes = []
+        asistencias_recibidas = {}
+        for miembro in miembros_activos:
+            valor = request.POST.get(f"asistencia_{miembro.pk}")
+            if not valor:
+                faltantes.append(miembro.nombre_completo)
+                continue
+            if valor not in estados_validos:
+                messages.error(request, f"Valor de asistencia inválido para {miembro.nombre_completo}.")
+                return redirect("actas_app:sesion_asistencia", pk=sesion.pk)
+            asistencias_recibidas[miembro.pk] = valor
+
+        if faltantes:
+            messages.warning(request, "Hay miembros sin marcar. Complete la asistencia antes de continuar.")
+            return redirect("actas_app:sesion_asistencia", pk=sesion.pk)
+
+        for miembro in miembros_activos:
+            AsistenciaSesion.objects.update_or_create(
+                sesion=sesion,
+                miembro=miembro,
+                defaults={
+                    "asistencia": asistencias_recibidas[miembro.pk],
+                    "observaciones": request.POST.get(f"observaciones_{miembro.pk}", "").strip()[:255],
+                },
+            )
+
+        sesion.recalcular_quorum()
+        registrar_bitacora(request.user, str(sesion), "registro de asistencia", "Se actualizó asistencia y quórum")
+        messages.success(request, "Asistencia guardada correctamente.")
+        return redirect("actas_app:sesion_detail", pk=sesion.pk)
+
+    if not miembros_activos:
+        messages.warning(
+            request,
+            "No hay miembros activos configurados para tomar asistencia. Configure primero los miembros del consistorio.",
+        )
+
+    context = {
+        "sesion": sesion,
+        "acta": acta,
+        "filas_asistencia": construir_filas_asistencia(sesion, miembros_activos),
+        "resumen_asistencia": obtener_resumen_asistencia(sesion, len(miembros_activos)),
+        "opciones_asistencia": AsistenciaSesion.Asistencia,
+        "asistencia_bloqueada": bool(acta and acta.estado == ActaSesion.Estado.APROBADA),
+    }
+    context.update(contexto_flujo_acta(sesion, acta, request.user))
+    return render(request, "actas_app/sesion_asistencia.html", context)
 
 
 @login_required

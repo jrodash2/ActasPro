@@ -69,7 +69,13 @@
 
   <div class="card mb-3"><div class="card-body">
     <p><strong>Fecha:</strong> {{ sesion.fecha }} | <strong>Lugar:</strong> {{ sesion.lugar }} | <strong>Tipo:</strong> {{ sesion.tipo_sesion }}</p>
-    <p><strong>Quórum:</strong> {{ sesion.quorum_alcanzado }}/{{ sesion.quorum_requerido }} {% if sesion.cumple_quorum %}<span class="badge badge-light-success">Cumple</span>{% else %}<span class="badge badge-light-danger">No cumple</span>{% endif %}</p>
+    <p><strong>Quórum:</strong> {{ resumen_asistencia.presentes }}/{{ sesion.quorum_requerido }} {% if resumen_asistencia.cumple_quorum %}<span class="badge badge-light-success">Quórum alcanzado</span>{% else %}<span class="badge badge-light-danger">No hay quórum</span>{% endif %}</p>
+    <h6>Asistencia</h6>
+    <div class="row mb-3">
+      <div class="col-md-4"><strong>Presentes:</strong><ul>{% for asistencia in asistencia_agrupada.presentes %}<li>{{ asistencia.miembro.nombre_completo }}{% if asistencia.observaciones %} — {{ asistencia.observaciones }}{% endif %}</li>{% empty %}<li>Sin presentes registrados.</li>{% endfor %}</ul></div>
+      <div class="col-md-4"><strong>Ausentes:</strong><ul>{% for asistencia in asistencia_agrupada.ausentes %}<li>{{ asistencia.miembro.nombre_completo }}{% if asistencia.observaciones %} — {{ asistencia.observaciones }}{% endif %}</li>{% empty %}<li>Sin ausentes registrados.</li>{% endfor %}</ul></div>
+      <div class="col-md-4"><strong>Excusados:</strong><ul>{% for asistencia in asistencia_agrupada.excusados %}<li>{{ asistencia.miembro.nombre_completo }}{% if asistencia.observaciones %} — {{ asistencia.observaciones }}{% endif %}</li>{% empty %}<li>Sin excusados registrados.</li>{% endfor %}</ul></div>
+    </div>
     <h6>Agenda de sesión</h6>
     <p class="text-muted mb-2">Checklist de puntos: I. Apertura; II. Discusión y aprobación de agenda; III. Lectura y aprobación acta anterior; IV. Informes; V. Correspondencia; VI. Asuntos pendientes; VII. Asuntos nuevos; VIII. Cierre de sesión.</p>
     <ul>{% for punto in sesion.puntos_agenda.all %}<li>{{ punto.numeral }}. {{ punto.titulo }}</li>{% empty %}<li>Sin agenda registrada.</li>{% endfor %}</ul>
