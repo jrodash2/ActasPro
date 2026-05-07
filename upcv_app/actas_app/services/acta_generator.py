@@ -7,12 +7,49 @@ def _lineas(lista, prefijo="- "):
     return "\n".join(f"{prefijo}{item}" for item in lista)
 
 
+def _quetzales(valor):
+    return f"Q {valor or 0:,.2f}"
+
+
+def _formatear_informe(informe):
+    if informe.tipo_informe == "financiero":
+        resumen_financiero = (
+            f"{informe.area}. {informe.expositor} informa que el saldo inicial fue de {_quetzales(informe.saldo_inicial)}, "
+            f"los ingresos fueron de {_quetzales(informe.ingresos)}, los egresos fueron de {_quetzales(informe.egresos)}, "
+            f"dejando un saldo final de {_quetzales(informe.saldo_final)}."
+        )
+        if informe.resumen:
+            resumen_financiero += f" {informe.resumen}"
+        return resumen_financiero
+    return f"{informe.area}. {informe.expositor}: {informe.resumen}"
+
+
 def generar_borrador_acta(sesion):
+    asistencias = sesion.asistencias.select_related("miembro").order_by("miembro__apellidos", "miembro__nombres")
     asistentes = [
         f"{a.miembro.nombre_completo} ({a.miembro.cargo})"
-        for a in sesion.asistencias.select_related("miembro").filter(asistencia="presente")
+        for a in asistencias
+        if a.asistencia == "presente"
     ]
-    informes = [f"{i.area}: {i.resumen}" for i in sesion.informes.all()]
+    ausentes = [
+        f"{a.miembro.nombre_completo} ({a.miembro.cargo})"
+        for a in asistencias
+        if a.asistencia == "ausente"
+    ]
+    excusados = [
+        f"{a.miembro.nombre_completo} ({a.miembro.cargo})"
+        for a in asistencias
+        if a.asistencia == "excusado"
+    ]
+    presentes_texto = ", ".join(asistentes) if asistentes else "sin presentes registrados"
+    ausencias_texto = ""
+    if ausentes or excusados:
+        ausencias_texto = (
+            "\nSe deja constancia de la ausencia de:\n"
+            f"Ausentes: {', '.join(ausentes) if ausentes else 'sin ausentes registrados'}.\n"
+            f"Excusados: {', '.join(excusados) if excusados else 'sin excusados registrados'}."
+        )
+    informes = [_formatear_informe(i) for i in sesion.informes.all().order_by("area")]
     correspondencias = [f"{c.remitente} - {c.asunto}. Decisión: {c.decision or 'Pendiente.'}" for c in sesion.correspondencias.all()]
     pendientes = [f"{p.titulo} ({p.get_estado_display()})" for p in sesion.pendientes_vinculados.filter(activo=True)]
     nuevos = [f"{n.titulo}: {n.decision or 'Sin decisión registrada.'}" for n in sesion.asuntos_nuevos.all()]
@@ -24,11 +61,11 @@ def generar_borrador_acta(sesion):
 
 ACTA NÚMERO {sesion.numero}/{sesion.anio}
 
-En {sesion.lugar}, siendo las {sesion.hora_inicio or 'hora pendiente'} del día {fecha_literal}, se reunió el consistorio en sesión {sesion.tipo_sesion.nombre.lower()}. Se verificó quórum con {sesion.quorum_alcanzado} presentes de {sesion.quorum_requerido} requeridos.
+En {sesion.lugar}, siendo las {sesion.hora_inicio or 'hora pendiente'} del día {fecha_literal}, se reunió el consistorio en sesión {sesion.tipo_sesion.nombre.lower()}. Estando presentes los siguientes hermanos: {presentes_texto}. Se verificó quórum con {sesion.quorum_alcanzado} presentes de {sesion.quorum_requerido} requeridos.{ausencias_texto}
 
 PRIMERO. APERTURA
 Se dio apertura formal de la sesión por el moderador {sesion.moderador.nombre_completo}. Secretario actuante: {sesion.secretario.nombre_completo}.
-Asistentes:
+Asistentes presentes:
 {_lineas(asistentes)}
 
 SEGUNDO. DISCUSIÓN Y APROBACIÓN DE AGENDA

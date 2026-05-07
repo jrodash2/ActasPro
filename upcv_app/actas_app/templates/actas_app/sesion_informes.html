@@ -1,0 +1,70 @@
+{% extends 'almacen/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid">
+  {% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}{% endif %}
+
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+      <h4 class="mb-1">Informes de la sesión {{ sesion.numero }}/{{ sesion.anio }}</h4>
+      <p class="text-muted mb-0">Fuente única: informes vinculados a la sesión. El acta usa automáticamente estos registros.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      {% if not bloqueado %}<a class="btn btn-primary" href="{% url 'actas_app:informe_create' sesion.pk %}">Registrar informe</a>{% endif %}
+      <a class="btn btn-secondary" href="{% url 'actas_app:acta_generar' sesion.pk %}">Generar sección en acta</a>
+      <a class="btn btn-light" href="{% url 'actas_app:sesion_detail' sesion.pk %}">Volver a sesión</a>
+    </div>
+  </div>
+
+  {% if bloqueado %}<div class="alert alert-warning">El acta ya está aprobada. No se pueden agregar, editar ni eliminar informes.</div>{% endif %}
+
+  <div class="row mb-3">
+    <div class="col-md-4"><div class="card"><div class="card-body"><h6>Informes esperados</h6><h3>{{ resumen_informes.esperados|length }}</h3></div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-body"><h6>Registrados</h6><h3>{{ resumen_informes.registrados }}</h3></div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-body"><h6>Pendientes</h6><h3>{{ resumen_informes.pendientes }}</h3></div></div></div>
+  </div>
+
+  <div class="card mb-3"><div class="card-body">
+    <h6>Resumen esperado</h6>
+    <div class="row">
+      {% for item in resumen_informes.esperados %}
+        <div class="col-md-4 mb-2">
+          <span class="badge {% if item.registrado %}badge-light-success{% else %}badge-light-warning{% endif %}">{% if item.registrado %}Registrado{% else %}Pendiente{% endif %}</span>
+          {{ item.area }}{% if item.saldo_final %} - Saldo final {{ item.saldo_final }}{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    {% if informes %}
+      <div class="table-responsive"><table class="table table-striped align-middle">
+        <thead><tr><th>Categoría</th><th>Responsable</th><th>Tipo</th><th>Saldo inicial</th><th>Ingresos</th><th>Egresos</th><th>Saldo final</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody>
+          {% for informe in informes %}
+            <tr>
+              <td>{{ informe.area }}</td>
+              <td>{{ informe.expositor }}</td>
+              <td>{{ informe.get_tipo_informe_display }}</td>
+              <td>{% if informe.tipo_informe == 'financiero' %}Q {{ informe.saldo_inicial|floatformat:2 }}{% else %}-{% endif %}</td>
+              <td>{% if informe.tipo_informe == 'financiero' %}Q {{ informe.ingresos|floatformat:2 }}{% else %}-{% endif %}</td>
+              <td>{% if informe.tipo_informe == 'financiero' %}Q {{ informe.egresos|floatformat:2 }}{% else %}-{% endif %}</td>
+              <td>{% if informe.tipo_informe == 'financiero' %}<strong>Q {{ informe.saldo_final|floatformat:2 }}</strong>{% else %}-{% endif %}</td>
+              <td><span class="badge badge-light-success">Vinculado a sesión</span></td>
+              <td class="d-flex flex-wrap gap-1">
+                <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#informe-{{ informe.pk }}">Ver</button>
+                {% if not bloqueado %}
+                  <a class="btn btn-sm btn-outline-secondary" href="{% url 'actas_app:informe_edit' informe.pk %}">Editar</a>
+                  <form method="post" action="{% url 'actas_app:informe_delete' informe.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Eliminar</button></form>
+                {% endif %}
+              </td>
+            </tr>
+            <tr class="collapse" id="informe-{{ informe.pk }}"><td colspan="9"><strong>Contenido:</strong> {{ informe.resumen|linebreaks }}{% if informe.observaciones %}<strong>Observaciones:</strong> {{ informe.observaciones|linebreaks }}{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    {% else %}
+      <div class="alert alert-info mb-0">Aún no hay informes registrados para esta sesión.</div>
+    {% endif %}
+  </div></div>
+</div></div>
+{% endblock %}
